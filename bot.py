@@ -45,6 +45,8 @@ def assign_point_command(message):
     if player_name in players:
         players[player_name] += 1
         bot.send_message(message.chat.id, f"Point added to player '{player_name}'.")
+        if players[player_name] == 3:
+            bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
     else:
         bot.send_message(message.chat.id, f"Player '{player_name}' not found.")
 
@@ -67,8 +69,24 @@ def clear_points_command(message):
     players.clear()
     bot.send_message(message.chat.id, "All points cleared. Starting a new game.")
 
-# Whenever Starting Bot
-@bot.message_handler(commands=['start', 'hello'])
+# Help Command
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    help_text = """
+Here are the commands you can use:
+
+/addplayer <name>: Add a player to the game.
+/removeplayer <name>: Remove a player from the game.
+/listplayers: List all the players currently in the game, along with their scores.
+/addpoint <name>: Assign a point to a player.
+/removepoint <name>: Remove a point from a player.
+/clearpoints: Clear all the points and start a new game.
+/help: Display this help message.
+"""
+    bot.send_message(message.chat.id, help_text)
+
+
+@bot.message_handler(commands=['start'])
 def send_welcome(message):
     # Generate Search Term Button
     markup = types.InlineKeyboardMarkup()
@@ -77,10 +95,58 @@ def send_welcome(message):
     markup.add(button_generate)
     markup.add(button_list)
 
-    markdown = f"""Hey *{message.chat.first_name}*, Welcome To *KR's Python Telegram Bot Template*.\n\nYou can use this template by visiting our template page from the buttons below."""
+    welcome_text = f"""
+Hey *{message.chat.first_name}*, Welcome To YouTube Roulette!
+
+Here's a quick explanation of the rules:
+1. Each player's turn, they will randomly generate a 4-character search term.
+2. They will have to choose one of the first three videos on YouTube using this search term. Channels must be skipped and playlists and songs without a timestamp are considered wildcards and don't count as one of the three choices, though they may be chosen. If a playlist is chosen, you must play the FIRST video. 
+3. The group must watch at least one full minute of the video (unless it is under one minute, in which case they must watch the whole video). After that time, players may begin "thumbs downing" a video by holding up their hand, and once a majority of players have thumbs downed, the game leader will exit the video.
+4. The person with the most votes gets a point.
+5. The first player to get 3 points wins the game.
+
+Special Rules:
+Each player has three "Superpowers" they can use ONCE PER GAME:
+1. Reroll a single character.
+2. Replace a character with a character of their choosing.
+3. Swap two characters in the search term.
+
+You can use the buttons below to generate a search term and list the players.
+"""
     
-    bot.send_message(message.chat.id, markdown, parse_mode="Markdown", reply_markup=markup)
+    bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
     print(f"Welcome Message Sent To {message.chat.first_name}\n")
+
+# Show the Buttons
+@bot.message_handler(commands=['commands'])
+def show_buttons(message):
+    # Generate Search Term Button
+    markup = types.InlineKeyboardMarkup()
+    button_generate = types.InlineKeyboardButton("Generate Search Term", callback_data='generate_search')
+    button_list = types.InlineKeyboardButton("List Players", callback_data='list_players')
+    markup.add(button_generate)
+    markup.add(button_list)
+
+    bot.send_message(message.chat.id, "Here are the available command buttons:", reply_markup=markup)
+
+@bot.message_handler(commands=['rules'])
+def rules_command(message):
+    rules_text = """
+Here's a quick explanation of the rules:
+1. Each player's turn, they will randomly generate a 4-character search term.
+2. They will have to choose one of the first three videos on YouTube using this search term. Channels, playlists, and songs without a timestamp are considered wildcards and don't count as one of the three choices.
+3. The group must watch at least one full minute of the video (unless it is under one minute, in which case they must watch the whole video). After that time, players may begin "thumbs downing" a video by holding up their hand, and once a majority of players have thumbs downed, the game leader will exit the video.
+4. The person with the most votes gets a point.
+5. The first player to get 3 points wins the game.
+
+Special Rules:
+Each player has three "Superpowers" they can use ONCE PER GAME:
+1. Reroll a single character.
+2. Replace a character with a character of their choosing.
+3. Swap two characters in the search term.
+"""
+    bot.send_message(message.chat.id, rules_text)
+
 
 # Handle button callback
 @bot.callback_query_handler(func=lambda call: call.data == 'generate_search')
