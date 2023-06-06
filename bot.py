@@ -12,6 +12,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Dictionary of Players and their Points
 players = {}
 
+# Command to add a player to the game
 @bot.message_handler(commands=['addplayer'])
 def add_player_command(message):
     try:
@@ -26,6 +27,7 @@ def add_player_command(message):
         bot.send_message(message.chat.id, f"Player '{player_name}' added.")
         print(f"Player '{player_name}' added.")
 
+# command to remove a player mid-game
 @bot.message_handler(commands=['removeplayer'])
 def remove_player_command(message):
     try:
@@ -113,8 +115,10 @@ def help_command(message):
     markup = types.InlineKeyboardMarkup()
     button_generate = types.InlineKeyboardButton("Generate Search Term", callback_data='generate_search')
     button_list = types.InlineKeyboardButton("List Players", callback_data='list_players')
+    button_reroll = types.InlineKeyboardButton("Reroll Character", callback_data='reroll')
     markup.add(button_generate)
     markup.add(button_list)
+    markup.add(button_reroll)
 
     help_text = """
 Here are the commands you can use:
@@ -126,7 +130,8 @@ Here are the commands you can use:
 /listplayers: List all the players currently in the game, along with their scores.
 /addpoint <name>: Assign a point to a player.
 /removepoint <name>: Remove a point from a player.
-/clearpoints: Clear all the points and start a new game.
+/clearpoints: Clear all the points.
+/newgame: Clear all the points and players, starting a new game.
 /rules: Display the rules of the game.
 /help: Display this help message.
 
@@ -137,12 +142,14 @@ You can also use the buttons below to generate a search term and list the player
 # Runs on /start
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    # Generate Search Term Button
+    # Generate Command Buttons
     markup = types.InlineKeyboardMarkup()
     button_generate = types.InlineKeyboardButton("Generate Search Term", callback_data='generate_search')
     button_list = types.InlineKeyboardButton("List Players", callback_data='list_players')
+    button_reroll = types.InlineKeyboardButton("Reroll Character", callback_data='reroll')
     markup.add(button_generate)
     markup.add(button_list)
+    markup.add(button_reroll)
 
     welcome_text = f"""
 Hey *{message.chat.first_name}*, Welcome To YouTube Roulette!
@@ -164,20 +171,23 @@ You can use the buttons below to generate a search term and list the players.
 """
     
     bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown", reply_markup=markup)
-    print(f"Welcome Message Sent To {message.chat.first_name}\n")
+    print(f"Welcome Message Sent To {message.chat.first_name}")
 
 # Show the Buttons
 @bot.message_handler(commands=['commands'])
 def show_buttons(message):
-    # Generate Search Term Button
+    # Generate Command Buttons
     markup = types.InlineKeyboardMarkup()
     button_generate = types.InlineKeyboardButton("Generate Search Term", callback_data='generate_search')
     button_list = types.InlineKeyboardButton("List Players", callback_data='list_players')
+    button_reroll = types.InlineKeyboardButton("Reroll Character", callback_data='reroll')
     markup.add(button_generate)
     markup.add(button_list)
+    markup.add(button_reroll)
 
     bot.send_message(message.chat.id, "Here are the available command buttons:", reply_markup=markup)
 
+# display the rules
 @bot.message_handler(commands=['rules'])
 def rules_command(message):
     rules_text = """
@@ -224,31 +234,46 @@ def generate_search_term():
     other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
 
     # Generate first character
-    first_char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'']
+    first_char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', ' ', 'other item']
     first_char = random.choice(first_char_options)
     if first_char == ' ':
         first_char = 'wildcard'
+    elif first_char == 'other item':
+        first_char = random.choice(other_list_choices)
     search_term += first_char
 
     # Generate middle characters
     for _ in range(2):
-        char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', 'other item']
+        char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', ' ', 'other item']
         char = random.choice(char_options)
         if char == 'other item':
             char = random.choice(other_list_choices)
         search_term += char
 
     # Generate last character
-    last_char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'']
+    last_char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', ' ', 'other item']
     last_char = random.choice(last_char_options)
     if last_char == ' ':
         last_char = 'wildcard'
+    elif last_char == 'other item':
+        last_char = random.choice(other_list_choices)
     search_term += last_char
 
     if 'wildcard' in search_term:
         search_term += ' (Wildcard)'
 
     return search_term
+
+# button to reroll a single character
+@bot.callback_query_handler(func=lambda call: call.data == 'reroll')
+def reroll_callback(call):
+    other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
+    char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', 'other item']
+    char = random.choice(char_options)
+    if char == 'other item':
+        char = random.choice(other_list_choices)
+    bot.send_message(call.message.chat.id, f"Rerolled Character: {char}")
+    print(f"Rerolled Character: {char}")
 
 print("Bot Started And Waiting For New Messages\n")
 
