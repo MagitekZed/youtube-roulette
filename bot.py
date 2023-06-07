@@ -132,6 +132,8 @@ Here are the commands you can use:
 /removepoint <name>: Remove a point from a player.
 /clearpoints: Clear all the points.
 /newgame: Clear all the points and players, starting a new game.
+/generate: Generate a new random character string.
+/reroll: Generate a single character for the "reroll" superpower. 
 /rules: Display the rules of the game.
 /help: Display this help message.
 
@@ -258,24 +260,47 @@ def generate_search_term():
     elif last_char == 'other item':
         last_char = random.choice(other_list_choices)
     search_term += last_char
-
-    if 'wildcard' in search_term:
-        search_term += ' (Wildcard)'
-
+    
     return search_term
 
-# button to reroll a single character
-@bot.callback_query_handler(func=lambda call: call.data == 'reroll')
-def reroll_callback(call):
+# Generate Single Character
+def generate_single_character():
     other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
     char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', 'other item']
     char = random.choice(char_options)
     if char == 'other item':
         char = random.choice(other_list_choices)
+    return char
+
+# Handle button callback
+@bot.callback_query_handler(func=lambda call: call.data == 'reroll')
+def reroll_callback(call):
+    # Handler for the "Reroll Character" button callback
+    char = generate_single_character()
     bot.send_message(call.message.chat.id, f"Rerolled Character: {char}")
     print(f"Rerolled Character: {char}")
 
-print("Bot Started And Waiting For New Messages\n")
+# Command to generate a new single character
+@bot.message_handler(commands=['reroll'])
+def reroll_command(message):
+    char = generate_single_character()
+    bot.send_message(message.chat.id, f"Rerolled Character: {char}")
+    print(f"Rerolled Character: {char}")
+
+# Handle button callback
+@bot.callback_query_handler(func=lambda call: call.data == 'generate_search')
+def generate_search_callback(call):
+    # Handler for the "Generate Search Term" button callback
+    search_term = generate_search_term()
+    bot.send_message(call.message.chat.id, f"Generated Search Term: {search_term}")
+    print(f"Generated Search Term: {search_term}")
+
+# Command to generate a new search term
+@bot.message_handler(commands=['generate'])
+def generate_term_command(message):
+    search_term = generate_search_term()
+    bot.send_message(message.chat.id, f"Generated Search Term: {search_term}")
+    print(f"Generated Search Term: {search_term}")
 
 # Waiting For New Messages
 bot.infinity_polling()
