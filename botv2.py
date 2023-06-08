@@ -20,7 +20,7 @@ game_phase = "No Game in Progress"
 def send_main_menu(message):
     markup = types.InlineKeyboardMarkup()
 
-    if game_phase == "No Game in Progress":
+    if game_phase == "No Game in Progress" or game_phase == "Game End":
         button_new_game = types.InlineKeyboardButton("Start New Game", callback_data='new_game')
         button_help = types.InlineKeyboardButton("Help", callback_data='help')
 
@@ -59,16 +59,44 @@ def send_main_menu(message):
 
         bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
 
+
+    #Explanation of the game setup phase
+    elif game_phase == "Game In Progress":
+        button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
+        button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
+        button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
+        button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+        button_show_leaderboard = types.InlineKeyboardButton("Show Leaderboard", callback_data='show_leaderboard')
+
+        markup.row(button_assign_point, button_remove_point)
+        markup.row(button_end_game, button_show_rules, button_show_leaderboard)
+
+        # Explanation of the buttons
+        explanation_text = """
+        Game In Progress Phase:
+        - "Assign Point": Assigns a point to a player. You will be prompted to enter the player's name.
+        - "Remove Point": Removes a point from a player. You will be prompted to enter the player's name.
+        - "End Game": Ends the game and displays the final scores.
+        - "Show Rules": Shows the rules of the game.
+        - "Show Leaderboard": Shows the current leaderboard.
+        """
+
+        bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
+
 # Function to start a new game
 def start_new_game(message):
     players.clear()
-    bot.send_message(message.chat.id, "All points and players cleared. You can now add players.")
-    print("All points and players cleared. Starting game setup.")
+    print("Starting game setup.")
 
 # Register this function as a message handler for the /newgame command
 @bot.message_handler(commands=['newgame'])
 def new_game_command(message):
     start_new_game(message)
+    # Transition to the "Game Setup" phase
+    global game_phase
+    game_phase = "Game Setup"
+    bot.send_message(message.chat.id, "The game setup phase has started! Use the menu to add players.")
+    send_main_menu(message)
 
 # Callback for the "Start New Game" button
 @bot.callback_query_handler(func=lambda call: call.data == 'new_game')
@@ -79,6 +107,7 @@ def new_game_callback(call):
     global game_phase
     game_phase = "Game Setup"
     bot.send_message(call.message.chat.id, "The game setup phase has started! Use the menu to add players.")
+    send_main_menu(call.message)
 
 # Function to show the rules
 def show_rules(message):
@@ -119,6 +148,8 @@ def start_game_callback(call):
         global game_phase
         game_phase = "Game In Progress"
         bot.send_message(call.message.chat.id, "The game has started!")
+        # Send the main menu for the "Game In Progress" phase
+        send_main_menu(call.message)
 
 # Callback for the "Cancel Game" button
 @bot.callback_query_handler(func=lambda call: call.data == 'cancel_game')
@@ -218,6 +249,75 @@ def remove_player_callback(call):
     msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
     bot.register_next_step_handler(msg, remove_player)
 
+# Callback for the "Assign Point" button
+@bot.callback_query_handler(func=lambda call: call.data == 'assign_point')
+def assign_point_callback(call):
+    # Send a message asking for the player's name
+    msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to assign a point to.")
+    # Register a listener for the next message from this user
+    bot.register_next_step_handler(msg, assign_point_name)
+
+def assign_point_name(message):
+    player_name = message.text
+    if player_name in players:
+        players[player_name] += 1
+        bot.send_message(message.chat.id, f"Point assigned to player: {player_name}")
+        if players[player_name] == 3:
+            # Transition to the "Game End" phase
+            global game_phase
+            game_phase = "Game End"
+            bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
+            # Display the final leaderboard
+            show_leaderboard_callback(message)
+    else:
+        bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+
+# Callback for the "Remove Point" button
+@bot.callback_query_handler(func=lambda call: call.data == 'remove_point')
+def remove_point_callback(call):
+    # Send a message asking for the player's name
+    msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove a point from.")
+    # Register a listener for the next message from this user
+    bot.register_next_step_handler(msg, remove_point_name)
+
+def remove_point_name(message):
+    player_name = message.text
+    if player_name in players and players[player_name] > 0:
+        players[player_name] -= 1
+        bot.send_message(message.chat.id, f"Point removed from player: {player_name}")
+    else:
+        bot.send_message(message.chat.id, f"Error: Player '{player_name}' either does not exist or has no points to remove.")
+
+# Callback for the "End Game" button
+@bot.callback_query_handler(func=lambda call: call.data == 'end_game')
+def end_game_callback(call):
+    # Transition to the "Game End" phase
+    global game_phase
+    game_phase = "Game End"
+    # Sort the players by points in descending order
+    sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
+    # Format the leaderboard as a string
+    leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
+    # Announce the winner (the player with the most points)
+    winner = sorted_players[0][0] if sorted_players else "No players"
+    # Send the game end message, the winner, and the leaderboard
+    bot.send_message(call.message.chat.id, f"The game has ended! The winner is {winner}.\n\nFinal Leaderboard:\n{leaderboard}")
+
+# Callback for the "Show Leaderboard" button
+@bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
+def show_leaderboard_callback(call):
+    # Determine the chat ID
+    if isinstance(call, types.CallbackQuery):
+        chat_id = call.message.chat.id
+    else:  # isinstance(call, types.Message)
+        chat_id = call.chat.id
+    # Sort the players by points in descending order
+    sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
+    # Format the leaderboard as a string
+    leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
+    # Send the leaderboard
+    bot.send_message(chat_id, f"Leaderboard:\n{leaderboard}")
+
 # Function to generate a search term
 def generate_search_term():
     search_term = ""
@@ -290,14 +390,12 @@ def add_point(message):
         bot.send_message(message.chat.id, f"Point added to player '{player_name}'.")
         print(f"Point added to player '{player_name}'.")
         if players[player_name] == 3:
+            # Transition to the "Game End" phase
+            global game_phase
+            game_phase = "Game End"
             bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
-            # Sort players by points
-            sorted_players = sorted(players.items(), key=lambda item: item[1], reverse=True)
-            # Generate ranking message
-            ranking_message = "Here are the final rankings:\n"
-            for i, (name, points) in enumerate(sorted_players, start=1):
-                ranking_message += f"{i}. {name} - {points} points\n"
-            bot.send_message(message.chat.id, ranking_message)
+            # Display the final leaderboard
+            show_leaderboard_callback(message)
     else:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
 
