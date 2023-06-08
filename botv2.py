@@ -24,26 +24,37 @@ game_phase = "No Game in Progress"
 # Main Menu 
 @bot.message_handler(commands=['menu'])
 def send_main_menu(message):
+    # Create an instance of InlineKeyboardMarkup
     markup = types.InlineKeyboardMarkup()
 
-    button_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+    # Define the inline keyboard buttons.
+    button_rules = types.InlineKeyboardButton("Detailed Rules", callback_data='show_rules')
 
     if game_phase == "No Game in Progress" or game_phase == "Game End":
         button_new_game = types.InlineKeyboardButton("Start New Game", callback_data='new_game')
-        button_help = types.InlineKeyboardButton("Help", callback_data='help')
 
+        # Add buttons to the markup
         markup.row(button_new_game)
-        markup.row(button_rules, button_help)
+        markup.row(button_rules)
 
         # Explanation of the game and the buttons
         explanation_text = """
-        Welcome to YouTube Roulette! In this game, players take turns generating random search terms and choosing a video to watch based on these terms. The player whose video gets the most votes wins a point. The first player to get 3 points wins the game!
-    
-        Here's what the buttons do:
-        - "Start New Game": Clears all points and players and starts a new game.
-        - "Help": Shows all available commands.
+Welcome to YouTube Roulette! 🎉
+
+In this game, you and your friends will compete to find the most entertaining YouTube video based on a randomly generated search term. Here's how it works:
+
+1️⃣ Start a new game and add players.
+2️⃣ Each player takes turns generating a random 4-character search term.
+3️⃣ The player then searches YouTube with this term and chooses a video to watch.
+4️⃣ Everyone watches the video and votes. The player whose video gets the most votes wins a point!
+5️⃣ The first player to get 3 points wins the game. 🏆
+
+But watch out! Each player also has three "Superpowers" they can use once per game: reroll a single character, replace a character with a character of their choosing, and swap two characters in the search term. Use them wisely!
+
+Ready to start? Just click 'Start New Game' below!
         """
-    
+
+        # Send the message with the markup
         bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
 
     # Explanation of the game setup phase
@@ -52,21 +63,22 @@ def send_main_menu(message):
         button_remove_player = types.InlineKeyboardButton("Remove Player", callback_data='remove_player')
         button_start_game = types.InlineKeyboardButton("Start Game", callback_data='start_game')
         button_cancel_game = types.InlineKeyboardButton("Cancel Game", callback_data='cancel_game')
-
+        button_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+    
         markup.row(button_add_player, button_remove_player)
         markup.row(button_start_game, button_cancel_game, button_rules)
-
+    
         # Explanation of the buttons
         explanation_text = """
-        Game Setup Phase:
-        - "Add Player": Adds a new player to the game. You will be prompted to enter the player's name.
-        - "Remove Player": Removes a player from the game. You will be prompted to enter the player's name.
-        - "Start Game": Starts the game with the current players.
-        - "Cancel Game": Cancels the game setup and returns to the initial state.
+        Welcome to the Game Setup Phase of YouTube Roulette! Here's what you can do:
+        - "Add Player": Add a new player to the game. You'll be asked to enter the player's name.
+        - "Remove Player": Remove a player from the game. You'll need to enter the player's name.
+        - "Start Game": Ready to roll? Click this to start the game with the current players.
+        - "Cancel Game": Changed your mind? This will cancel the game setup and return to the initial state.
+        - "Show Rules": Need a refresher on the rules? Click this to view the game rules.
         """
-
+    
         bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
-
 
     #Explanation of the game setup phase
     elif game_phase == "Game In Progress":
@@ -117,31 +129,34 @@ def new_game_callback(call):
     # Transition to the "Game Setup" phase
     global game_phase
     game_phase = "Game Setup"
-    bot.send_message(call.message.chat.id, "The game setup phase has started! Use the menu to add players.")
     send_main_menu(call.message)
 
-# Function to show the rules
-def show_rules(message):
-    rules_text = """
-    Here's a quick explanation of the rules:
-    1. Each player's turn, they will randomly generate a 4-character search term.
-    2. They will have to choose one of the first three videos on YouTube using this search term. Channels must be skipped and playlists and songs without a timestamp are considered wildcards and don't count as one of the three choices, though they may be chosen. If a playlist is chosen, you must play the FIRST video. 
-    3. The group must watch at least one full minute of the video (unless it is under one minute, in which case they must watch the whole video). After that time, players may begin "thumbs downing" a video by holding up their hand, and once a majority of players have thumbs downed, the game leader will exit the video.
-    4. The person with the most votes gets a point.
-    5. The first player to get 3 points wins the game.
+# The rules function is called when the user clicks the "Show Rules" button.
+# It sends a new message with the rules of the game.
+@bot.callback_query_handler(func=lambda call: call.data == 'show_rules')
+def rules(call):
+    bot.send_message(call.message.chat.id, """
+Welcome to YouTube Roulette! Here's a detailed explanation of the rules:
 
-    Special Rules:
-    Each player has three "Superpowers" they can use ONCE PER GAME:
-    1. Reroll a single character.
-    2. Replace a character with a character of their choosing.
-    3. Swap two characters in the search term.
-    """
-    bot.edit_message_text(rules_text, chat_id=message.chat.id, message_id=message.message_id)
-    # Send the appropriate menu based on the game phase
+1️⃣ Each player's turn, they will randomly generate a 4-character search term using the 'Generate Term' button.
+2️⃣ The player will then search YouTube using this term and choose one of the first three videos that appear. Note that channels, playlists, and songs without a timestamp are considered wildcards and don't count as one of the three choices, though they may be chosen. If a playlist is chosen, you must play the FIRST video.
+3️⃣ The group must watch at least one full minute of the video (unless it is under one minute, in which case they must watch the whole video). After that time, players may begin "thumbs downing" a video by holding up their hand, and once a majority of players have thumbs downed, the game leader will exit the video.
+4️⃣ After everyone has taken a turn and chosen a video, the group will vote on which person's video they thought was the best. The person whose video gets the most votes gets a point.
+5️⃣ The first player to get 3 points wins the game. 🏆
+
+Special Rules:
+Each player also has three "Superpowers" they can use once per game:
+- Reroll a single character: If you don't like one of the characters in your search term, you can reroll it to get a new random character.
+- Replace a character with a character of their choosing: If you have a specific character you want in your search term, you can replace one of the existing characters with it.
+- Swap two characters in the search term: If you think your search term would be better with two characters swapped, you can do that too!
+
+Use your superpowers wisely and have fun!
+    """)
+
+    # Check if a game is in progress.
     if game_phase == "Game In Progress":
-        send_turn_menu(message)
-    else:
-        send_main_menu(message)
+        # If a game is in progress, send the turn menu.
+        send_turn_menu(call.message)
 
 # Register this function as a message handler for the /rules command
 @bot.message_handler(commands=['rules'])
