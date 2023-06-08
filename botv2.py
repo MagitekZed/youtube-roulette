@@ -371,25 +371,12 @@ def assign_point_name(message):
             game_phase = "Game End"
             bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
             # Display the final leaderboard
-            show_leaderboard_callback(message)
-            # Send the main menu for the "Game End" phase
-            try:
-                send_main_menu(message)
-            except AttributeError:
-                send_main_menu(message.chat)
-    else:
-        bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+            show_leaderboard(message)
 
-# Callback for the "Show Leaderboard" button
-@bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
-def show_leaderboard_callback(call):
+# function to show the leaderboard
+def show_leaderboard(message):
     # Determine the chat ID
-    if isinstance(call, types.CallbackQuery):
-        chat_id = call.message.chat.id
-        message = call.message
-    else:  # isinstance(call, types.Message)
-        chat_id = call.chat.id
-        message = call
+    chat_id = message.chat.id
     # Sort the players by points in descending order
     sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
     # Format the leaderboard as a string
@@ -404,6 +391,11 @@ def show_leaderboard_callback(call):
         # Send the main menu for the "Game In Progress" phase
         send_main_menu(message)
 
+# Callback for the "Show Leaderboard" button
+@bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
+def show_leaderboard_callback(call):
+    show_leaderboard(call.message)
+
 # Callback for the "Remove Point" button
 @bot.callback_query_handler(func=lambda call: call.data == 'remove_point')
 def remove_point_callback(call):
@@ -412,6 +404,7 @@ def remove_point_callback(call):
     # Register a listener for the next message from this user
     bot.register_next_step_handler(msg, remove_point_name)
 
+# function to remove a point
 def remove_point_name(message):
     player_name = message.text
     if player_name in players and players[player_name] > 0:
