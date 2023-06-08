@@ -20,12 +20,14 @@ game_phase = "No Game in Progress"
 def send_main_menu(message):
     markup = types.InlineKeyboardMarkup()
 
+    button_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+
     if game_phase == "No Game in Progress" or game_phase == "Game End":
         button_new_game = types.InlineKeyboardButton("Start New Game", callback_data='new_game')
         button_help = types.InlineKeyboardButton("Help", callback_data='help')
 
         markup.row(button_new_game)
-        markup.row(button_help)
+        markup.row(button_rules, button_help)
 
         # Explanation of the game and the buttons
         explanation_text = """
@@ -46,7 +48,7 @@ def send_main_menu(message):
         button_cancel_game = types.InlineKeyboardButton("Cancel Game", callback_data='cancel_game')
 
         markup.row(button_add_player, button_remove_player)
-        markup.row(button_start_game, button_cancel_game)
+        markup.row(button_start_game, button_cancel_game, button_rules)
 
         # Explanation of the buttons
         explanation_text = """
@@ -62,6 +64,8 @@ def send_main_menu(message):
 
     #Explanation of the game setup phase
     elif game_phase == "Game In Progress":
+        button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
+        button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
         button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
         button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
         button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
@@ -69,6 +73,7 @@ def send_main_menu(message):
         button_show_leaderboard = types.InlineKeyboardButton("Show Leaderboard", callback_data='show_leaderboard')
 
         markup.row(button_assign_point, button_remove_point)
+        markup.row(button_generate_term, button_roll_character)
         markup.row(button_end_game, button_show_rules, button_show_leaderboard)
 
         # Explanation of the buttons
@@ -125,7 +130,8 @@ def show_rules(message):
     2. Replace a character with a character of their choosing.
     3. Swap two characters in the search term.
     """
-    bot.send_message(message.chat.id, rules_text)
+    bot.edit_message_text(rules_text, chat_id=message.chat.id, message_id=message.message_id)
+    send_main_menu(message)
 
 # Register this function as a message handler for the /rules command
 @bot.message_handler(commands=['rules'])
@@ -291,20 +297,23 @@ def remove_point_name(message):
     else:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' either does not exist or has no points to remove.")
 
-# Callback for the "End Game" button
-@bot.callback_query_handler(func=lambda call: call.data == 'end_game')
-def end_game_callback(call):
-    # Transition to the "Game End" phase
-    global game_phase
-    game_phase = "Game End"
+def end_game(message):
     # Sort the players by points in descending order
     sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
-    # Format the leaderboard as a string
-    leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
-    # Announce the winner (the player with the most points)
-    winner = sorted_players[0][0] if sorted_players else "No players"
-    # Send the game end message, the winner, and the leaderboard
-    bot.send_message(call.message.chat.id, f"The game has ended! The winner is {winner}.\n\nFinal Leaderboard:\n{leaderboard}")
+    # Get the highest score
+    highest_score = sorted_players[0][1]
+    # Get all players with the highest score
+    winners = [player for player, score in sorted_players if score == highest_score]
+    # Determine the winner message based on the number of winners
+    if len(winners) == 1:
+        winner_message = f"The winner is {winners[0]} with {highest_score} points!"
+    else:
+        winners_str = ", ".join(winners)
+        winner_message = f"There's a tie between {winners_str} with {highest_score} points each!"
+    # Send the winner message
+    bot.send_message(message.chat.id, winner_message)
+    # Reset the game
+    reset_game()
 
 # Callback for the "Show Leaderboard" button
 @bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
@@ -320,6 +329,8 @@ def show_leaderboard_callback(call):
     leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
     # Send the leaderboard
     bot.send_message(chat_id, f"Leaderboard:\n{leaderboard}")
+    # Send the main menu
+    send_main_menu(call.message)
 
 # Function to generate a search term
 def generate_search_term():
@@ -331,7 +342,7 @@ def generate_search_term():
     char_options = wildcard_choices + ['other item']
     char = random.choice(char_options)
     if char == ' ':
-        char = '<wildcar>'
+        char = '<wildcard>'
     elif char == 'other item':
         char = random.choice(other_list_choices)
     search_term += char
@@ -384,6 +395,18 @@ def roll_callback(call):
     char = generate_single_character()
     bot.send_message(call.message.chat.id, f"Rolled Character: {char}")
     print(f"Rolled Character: {char}")
+
+# Callback for the "Generate Term" button
+@bot.callback_query_handler(func=lambda call: call.data == 'generate')
+def generate_term_callback(call):
+    search_term = generate_search_term()
+    bot.send_message(call.message.chat.id, f"Generated Search Term: {search_term}")
+
+# Callback for the "Roll Character" button
+@bot.callback_query_handler(func=lambda call: call.data == 'roll')
+def roll_character_callback(call):
+    char = generate_single_character()
+    bot.send_message(call.message.chat.id, f"Rolled Character: {char}")
 
 # Function to add a point to a player
 def add_point(message):
