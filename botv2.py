@@ -359,6 +359,27 @@ def assign_point_callback(call):
     # Register a listener for the next message from this user
     bot.register_next_step_handler(msg, assign_point_name)
 
+# Function definition for assigning points
+def assign_point_name(message):
+    player_name = message.text
+    if player_name in players:
+        players[player_name] += 1
+        bot.send_message(message.chat.id, f"Point assigned to player: {player_name}")
+        if players[player_name] == 3:
+            # Transition to the "Game End" phase
+            global game_phase
+            game_phase = "Game End"
+            bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
+            # Display the final leaderboard
+            show_leaderboard_callback(message)
+            # Send the main menu for the "Game End" phase
+            try:
+                send_main_menu(message)
+            except AttributeError:
+                send_main_menu(message.chat)
+    else:
+        bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+
 # Callback for the "Show Leaderboard" button
 @bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
 def show_leaderboard_callback(call):
