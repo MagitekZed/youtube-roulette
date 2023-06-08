@@ -135,7 +135,11 @@ def show_rules(message):
     3. Swap two characters in the search term.
     """
     bot.edit_message_text(rules_text, chat_id=message.chat.id, message_id=message.message_id)
-    send_main_menu(message)
+    # Send the appropriate menu based on the game phase
+    if game_phase == "Game In Progress":
+        send_turn_menu(message)
+    else:
+        send_main_menu(message)
 
 # Register this function as a message handler for the /rules command
 @bot.message_handler(commands=['rules'])
@@ -158,8 +162,41 @@ def start_game_callback(call):
         global game_phase
         game_phase = "Game In Progress"
         bot.send_message(call.message.chat.id, "The game has started!")
+
+        # Initialize turn order
+        global turn_order
+        turn_order = list(players.keys())
+        random.shuffle(turn_order)
+
+        # Initialize current player index
+        global current_player_index
+        current_player_index = 0
+
+        # Announce the first player's turn
+        bot.send_message(call.message.chat.id, f"It's {turn_order[current_player_index]}'s turn!")
+
         # Send the main menu for the "Game In Progress" phase
-        send_main_menu(call.message)
+        send_turn_menu(call.message)
+
+# Function to send the turn menu
+def send_turn_menu(message):
+    markup = types.InlineKeyboardMarkup()
+    button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
+    button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
+    button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+    button_next_turn = types.InlineKeyboardButton("Next Turn", callback_data='next_turn')
+    markup.row(button_generate_term, button_roll_character)
+    markup.row(button_show_rules, button_next_turn)
+    bot.send_message(message.chat.id, "What would you like to do?", reply_markup=markup)
+
+# Callback for the "Next Turn" button
+@bot.callback_query_handler(func=lambda call: call.data == 'next_turn')
+def next_turn_callback(call):
+    global current_player_index
+    # Increment the index of the current player (wrapping around to the start of the list if necessary)
+    current_player_index = (current_player_index + 1) % len(turn_order)
+    # Start the next turn
+    start_turn(call.message)
 
 # Callback for the "Cancel Game" button
 @bot.callback_query_handler(func=lambda call: call.data == 'cancel_game')
