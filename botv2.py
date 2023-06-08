@@ -257,6 +257,7 @@ def assign_point_callback(call):
     # Register a listener for the next message from this user
     bot.register_next_step_handler(msg, assign_point_name)
 
+# Register this function as a message handler for the /addpoints command
 def assign_point_name(message):
     player_name = message.text
     if player_name in players:
@@ -269,6 +270,8 @@ def assign_point_name(message):
             bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
             # Display the final leaderboard
             show_leaderboard_callback(message)
+            # Send the main menu for the "Game End" phase
+            send_main_menu(message)
     else:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
 
