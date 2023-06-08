@@ -9,8 +9,12 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 # Creating Telebot Object
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Dictionary of Players and their Points
+# List of players and their scores
 players = {}
+# List of players in turn order
+turn_order = []
+# Index of the current player
+current_player_index = 0
 
 # Global variable to store the current game phase
 game_phase = "No Game in Progress"
