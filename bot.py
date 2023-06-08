@@ -12,14 +12,63 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Dictionary of Players and their Points
 players = {}
 
+# Main Menu 
+@bot.message_handler(commands=['menu'])
+def send_main_menu(message):
+    markup = types.InlineKeyboardMarkup()
+
+    button_new_game = types.InlineKeyboardButton("Start New Game", callback_data='new_game')
+    button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+    button_add_player = types.InlineKeyboardButton("Add Player", callback_data='add_player')
+    button_remove_player = types.InlineKeyboardButton("Remove Player", callback_data='remove_player')
+    button_help = types.InlineKeyboardButton("Help", callback_data='help')
+
+    markup.row(button_new_game, button_show_rules)
+    markup.row(button_add_player, button_remove_player)
+    markup.row(button_help)
+
+    bot.send_message(message.chat.id, "Main Menu:", reply_markup=markup)
+
+# Callback for the "Start New Game" button
+@bot.callback_query_handler(func=lambda call: call.data == 'new_game')
+def new_game_callback(call):
+    # Call the function that handles the /newgame command
+    new_game_command(call.message)
+
+# Callback for the "Show Rules" button
+@bot.callback_query_handler(func=lambda call: call.data == 'show_rules')
+def show_rules_callback(call):
+    # Call the function that handles the /rules command
+    rules_command(call.message)
+
+# Callback for the "Add Player" button
+@bot.callback_query_handler(func=lambda call: call.data == 'add_player')
+def add_player_callback(call):
+    # Call the function that handles the /addplayer command
+    add_player_command(call.message)
+
+# Callback for the "Remove Player" button
+@bot.callback_query_handler(func=lambda call: call.data == 'remove_player')
+def remove_player_callback(call):
+    # Call the function that handles the /removeplayer command
+    remove_player_command(call.message)
+
+# Callback for the "Help" button
+@bot.callback_query_handler(func=lambda call: call.data == 'help')
+def help_callback(call):
+    # Call the function that handles the /help command
+    help_command(call.message)
+
 # Command to add a player to the game
 @bot.message_handler(commands=['addplayer'])
 def add_player_command(message):
-    try:
-        player_name = message.text.split(' ', 1)[1]
-    except IndexError:
-        bot.send_message(message.chat.id, "Error: No player name provided. Use /addplayer <name>.")
-        return
+    # Send a message asking for the player's name
+    msg = bot.send_message(message.chat.id, "Please enter the player's name.")
+    # Register a listener for the next message from this user
+    bot.register_next_step_handler(msg, add_player_name)
+
+def add_player_name(message):
+    player_name = message.text
     if player_name in players:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' already exists.")
     else:
@@ -27,14 +76,16 @@ def add_player_command(message):
         bot.send_message(message.chat.id, f"Player '{player_name}' added.")
         print(f"Player '{player_name}' added.")
 
-# command to remove a player mid-game
+# Command to remove a player from the game
 @bot.message_handler(commands=['removeplayer'])
 def remove_player_command(message):
-    try:
-        player_name = message.text.split(' ', 1)[1]
-    except IndexError:
-        bot.send_message(message.chat.id, "Error: No player name provided. Use /removeplayer <name>.")
-        return
+    # Send a message asking for the player's name
+    msg = bot.send_message(message.chat.id, "Please enter the name of the player to remove.")
+    # Register a listener for the next message from this user
+    bot.register_next_step_handler(msg, remove_player_name)
+
+def remove_player_name(message):
+    player_name = message.text
     if player_name in players:
         del players[player_name]
         bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
