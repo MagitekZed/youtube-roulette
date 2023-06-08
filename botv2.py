@@ -15,6 +15,8 @@ players = {}
 turn_order = []
 # Index of the current player
 current_player_index = 0
+# Global variable to store the number of turns taken in the current round
+turns_taken = 0
 
 # Global variable to store the current game phase
 game_phase = "No Game in Progress"
@@ -189,13 +191,66 @@ def send_turn_menu(message):
     markup.row(button_show_rules, button_next_turn)
     bot.send_message(message.chat.id, "What would you like to do?", reply_markup=markup)
 
+# Function to start the turn
+def start_turn(message):
+    # Announce the current player's turn
+    bot.send_message(message.chat.id, f"It's {turn_order[current_player_index]}'s turn!")
+    # Send the turn menu
+    send_turn_menu(message)
+
 # Callback for the "Next Turn" button
 @bot.callback_query_handler(func=lambda call: call.data == 'next_turn')
 def next_turn_callback(call):
     global current_player_index
+    current_player_index += 1
+    if current_player_index >= len(turn_order):
+        # If everyone has had a turn, announce the end of the round
+        bot.send_message(call.message.chat.id, "End of round! Time to vote for the winner.")
+        # Reset the current player index
+        current_player_index = 0
+        # Send the end of round menu
+        send_end_of_round_menu(call.message)
+    else:
+        # If not everyone has had a turn, start the next turn
+        start_turn(call.message)
+      
+# Function to send the end of round menu
+def send_end_of_round_menu(message):
+    markup = types.InlineKeyboardMarkup()
+    button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
+    button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
+    button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+    button_next_round = types.InlineKeyboardButton("Next Round", callback_data='next_round')
+    markup.row(button_assign_point, button_remove_point)
+    markup.row(button_show_rules, button_next_round)
+    bot.send_message(message.chat.id, "Round over! Time to vote for the winner!", reply_markup=markup)
+
+# Callback for the "Next Turn" button
+@bot.callback_query_handler(func=lambda call: call.data == 'next_turn')
+def next_turn_callback(call):
+    global current_player_index
+    global turns_taken
     # Increment the index of the current player (wrapping around to the start of the list if necessary)
     current_player_index = (current_player_index + 1) % len(turn_order)
-    # Start the next turn
+    # Increment the number of turns taken
+    turns_taken += 1
+    # Check if the round is over
+    if turns_taken == len(turn_order):
+        # Reset the number of turns taken
+        turns_taken = 0
+        # Send the end of round menu
+        send_end_of_round_menu(call.message)
+    else:
+        # Start the next turn
+        start_turn(call.message)
+
+# Callback for the "Next Round" button
+@bot.callback_query_handler(func=lambda call: call.data == 'next_round')
+def next_round_callback(call):
+    # Reset the current player index
+    global current_player_index
+    current_player_index = 0
+    # Start the next round
     start_turn(call.message)
 
 # Callback for the "Cancel Game" button
