@@ -362,9 +362,11 @@ def send_end_of_round_menu(message):
     button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
     button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
     button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+    button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
     button_next_round = types.InlineKeyboardButton("Next Round", callback_data='next_round')
     markup.row(button_assign_point, button_remove_point)
-    markup.row(button_show_rules, button_next_round)
+    markup.row(button_show_rules, button_end_game)
+    markup.row(button_next_round)
     bot.send_message(message.chat.id, "Round over! Time to vote for the winner!", reply_markup=markup)
 
 # Callback for the "Next Round" button
@@ -409,8 +411,9 @@ def send_point_submenu(message):
     button_assign_point = types.InlineKeyboardButton("Assign Another Point", callback_data='assign_point')
     button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
     button_next_round = types.InlineKeyboardButton("Next Round", callback_data='next_round')
+    button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
     markup.row(button_assign_point, button_remove_point)
-    markup.row(button_next_round)
+    markup.row(button_next_round, button_end_game)
     bot.send_message(message.chat.id, "What would you like to do next?", reply_markup=markup)
 
 # function to show the leaderboard
@@ -426,9 +429,6 @@ def show_leaderboard(message):
     # Check if the game has ended
     if game_phase == "Game End":
         # Send the main menu for the "Game End" phase
-        send_main_menu(message)
-    else:
-        # Send the main menu for the "Game In Progress" phase
         send_main_menu(message)
 
 # Callback for the "Show Leaderboard" button
@@ -471,28 +471,18 @@ def end_game(message):
     bot.send_message(message.chat.id, winner_message)
     # Reset the game
     reset_game()
+    send_main_menu(message)
 
-# Callback for the "Show Leaderboard" button
-@bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
-def show_leaderboard_callback(call):
-    # Determine the chat ID
-    if isinstance(call, types.CallbackQuery):
-        chat_id = call.message.chat.id
-    else:  # isinstance(call, types.Message)
-        chat_id = call.chat.id
-    # Sort the players by points in descending order
-    sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
-    # Format the leaderboard as a string
-    leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
-    # Send the leaderboard
-    bot.send_message(chat_id, f"Leaderboard:\n{leaderboard}")
-    # Check if the game has ended
-    if game_phase == "Game End":
-        # Send the main menu for the "Game End" phase
-        send_main_menu(call.message)
-    else:
-        # Send the main menu for the "Game In Progress" phase
-        send_main_menu(call.message)
+# Callback for the "End Game" button
+@bot.callback_query_handler(func=lambda call: call.data == 'end_game')
+def end_game_callback(call):
+    end_game(call.message)
+
+# Function to reset the game
+def reset_game():
+    global players, game_phase
+    players = {}
+    game_phase = "No Game in Progress"
 
 # Function to generate a search term
 def generate_search_term():
