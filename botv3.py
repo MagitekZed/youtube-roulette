@@ -281,11 +281,6 @@ def start_game_callback(call):
     if len(players) < 2:
         bot.send_message(call.message.chat.id, "Error: At least 2 players are required to start the game.")
     else:
-        # Transition to the "Game In Progress" phase
-        global game_phase
-        game_phase = "Game In Progress"
-        bot.send_message(call.message.chat.id, "The game has started!")
-
         # Initialize turn order
         global turn_order
         turn_order = list(players.keys())
@@ -304,6 +299,11 @@ def start_game_callback(call):
 
         # Add all of the player buttons to the markup using the add method.
         player_keyboard.add(*player_buttons)
+
+        # Transition to the "Game In Progress" phase
+        global game_phase
+        game_phase = "Game In Progress"
+        bot.send_message(call.message.chat.id, "The game has started!", reply_markup=player_keyboard)
 
         # Announce the first player's turn and send the turn menu
         start_turn(call.message)
