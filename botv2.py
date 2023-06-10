@@ -221,29 +221,20 @@ def start_game_callback(call):
         # Add all of the player buttons to the markup using the add method.
         player_keyboard.add(*player_buttons)
 
-        # Announce the first player's turn
-        bot.send_message(call.message.chat.id, f"It's {turn_order[current_player_index]}'s turn!")
-
-        # Send the main menu for the "Game In Progress" phase
-        send_turn_menu(call.message)
-
-# Function to send the turn menu
-def send_turn_menu(message):
-    markup = types.InlineKeyboardMarkup()
-    button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
-    button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
-    button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
-    button_next_turn = types.InlineKeyboardButton("Next Turn", callback_data='next_turn')
-    markup.row(button_generate_term, button_roll_character)
-    markup.row(button_show_rules, button_next_turn)
-    bot.send_message(message.chat.id, "What would you like to do?", reply_markup=markup)
+        # Announce the first player's turn and send the turn menu
+        start_turn(call.message)
 
 # Function to start the turn
 def start_turn(message):
-    # Announce the current player's turn
-    bot.send_message(message.chat.id, f"It's {turn_order[current_player_index]}'s turn!")
-    # Send the turn menu
-    send_turn_menu(message)
+    current_player = turn_order[current_player_index]
+    current_score = players[current_player]
+    markup = types.InlineKeyboardMarkup()
+    button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate_term')
+    button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll_character')
+    button_next_turn = types.InlineKeyboardButton("Next Turn", callback_data='next_turn')  # New button to skip turn
+    markup.row(button_generate_term, button_roll_character)
+    markup.row(button_next_turn)
+    bot.send_message(message.chat.id, f"It's {current_player}'s turn. Your current score is {current_score}.\n\nGenerate Term: Create a 4-character search term for YouTube.\nRoll Character: Randomly select a character for the search term.\nSkip Turn: Pass your turn to the next player.", reply_markup=markup)
 
 # Callback for the "Next Turn" button
 @bot.callback_query_handler(func=lambda call: call.data == 'next_turn')
@@ -313,10 +304,11 @@ def add_player(message):
     player_name = message.text
     if player_name in players:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' already exists.")
+        send_player_submenu(message)  # Send the new submenu after removing a player      
     else:
         players[player_name] = 0
         bot.send_message(message.chat.id, f"Player '{player_name}' added.")
-        print(f"Player '{player_name}' added.")
+        send_player_submenu(message)  # Send the new submenu after adding a player
 
 # Register this function as a message handler for the /addplayer command
 @bot.message_handler(commands=['addplayer'])
@@ -336,9 +328,10 @@ def remove_player(message):
     if player_name in players:
         del players[player_name]
         bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
-        print(f"Player '{player_name}' removed.")
+        send_player_submenu(message)  # Send the new submenu after removing a player
     else:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+        send_player_submenu(message)  # Send the new submenu after removing a player        
 
 # Register this function as a message handler for the /removeplayer command
 @bot.message_handler(commands=['removeplayer'])
@@ -352,39 +345,23 @@ def remove_player_callback(call):
     msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
     bot.register_next_step_handler(msg, remove_player)
 
-# Register this function as a message handler for the /addplayer command
-@bot.message_handler(commands=['addplayer'])
-def add_player_command(message):
-    msg = bot.send_message(message.chat.id, "Please enter the player's name.")
-    bot.register_next_step_handler(msg, add_player)
+# Send the add/remove player submenu during game setup
+def send_player_submenu(message):
+    markup = types.InlineKeyboardMarkup()
+    button_add_another = types.InlineKeyboardButton("Add Another Player", callback_data='add_player')
+    button_remove_player = types.InlineKeyboardButton("Remove Player", callback_data='remove_player')
+    button_start_game = types.InlineKeyboardButton("Start Game", callback_data='start_game')
+    markup.row(button_add_another, button_remove_player)
+    markup.row(button_start_game)
 
-# Call this function from the callback function for the "Add Player" button
-@bot.callback_query_handler(func=lambda call: call.data == 'add_player')
-def add_player_callback(call):
-    msg = bot.send_message(call.message.chat.id, "Please enter the player's name.")
-    bot.register_next_step_handler(msg, add_player)
-
-# Function to remove a player
-def remove_player(message):
-    player_name = message.text
-    if player_name in players:
-        del players[player_name]
-        bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
-        print(f"Player '{player_name}' removed.")
+    # Generate a string with the list of current players
+    player_list = "\n".join(players.keys())
+    if player_list:
+        player_list = f"Current players:\n{player_list}"
     else:
-        bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+        player_list = "No players added yet."
 
-# Register this function as a message handler for the /removeplayer command
-@bot.message_handler(commands=['removeplayer'])
-def remove_player_command(message):
-    msg = bot.send_message(message.chat.id, "Please enter the name of the player to remove.")
-    bot.register_next_step_handler(msg, remove_player)
-
-# Call this function from the callback function for the "Remove Player" button
-@bot.callback_query_handler(func=lambda call: call.data == 'remove_player')
-def remove_player_callback(call):
-    msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
-    bot.register_next_step_handler(msg, remove_player)
+    bot.send_message(message.chat.id, f"{player_list}\n\nWould you like to add/remove another player or start the game?", reply_markup=markup)
 
 # Callback for the "Assign Point" button
 @bot.callback_query_handler(func=lambda call: call.data == 'assign_point')
