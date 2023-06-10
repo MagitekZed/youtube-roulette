@@ -41,18 +41,12 @@ def send_main_menu(message):
         explanation_text = """
 Welcome to YouTube Roulette! 🎉
 
-In this game, you and your friends will compete to find the most entertaining YouTube video based on a randomly generated search term. Here's how it works:
+Compete with your friends to find the most entertaining YouTube video based on a randomly generated search term. The player whose video gets the most votes wins a point. First to 3 points wins the game! 🏆
 
-1️⃣ Start a new game and add players.
-2️⃣ Each player takes turns generating a random 4-character search term.
-3️⃣ The player then searches YouTube with this term and chooses a video to watch.
-4️⃣ Everyone watches the video and votes. The player whose video gets the most votes wins a point!
-5️⃣ The first player to get 3 points wins the game. 🏆
+Use your three "Superpowers" wisely: reroll a character, replace a character, or swap two characters in the search term. 
 
-But watch out! Each player also has three "Superpowers" they can use once per game: reroll a single character, replace a character with a character of their choosing, and swap two characters in the search term. Use them wisely!
-
-Ready to start? Just click 'Start New Game' below!
-        """
+Ready to start? Click 'Start New Game' below! For a detailed explanation of the rules, click 'Detailed Rules'.
+"""
 
         # Send the message with the markup
         bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
@@ -69,16 +63,20 @@ Ready to start? Just click 'Start New Game' below!
         markup.row(button_start_game, button_cancel_game, button_rules)
     
         # Explanation of the buttons
-        explanation_text = """
-        Welcome to the Game Setup Phase of YouTube Roulette! Here's what you can do:
-        - "Add Player": Add a new player to the game. You'll be asked to enter the player's name.
-        - "Remove Player": Remove a player from the game. You'll need to enter the player's name.
-        - "Start Game": Ready to roll? Click this to start the game with the current players.
-        - "Cancel Game": Changed your mind? This will cancel the game setup and return to the initial state.
-        - "Show Rules": Need a refresher on the rules? Click this to view the game rules.
-        """
+        setup_text = """
+Game Setup 🎮
+
+Add players using the 'Add Player' button. You need at least two players to start the game. 
+
+Once all players are added, click 'Start Game' to begin the YouTube Roulette! 
+
+Need to remove a player? Use the 'Remove Player' button. 
+
+For a detailed explanation of the rules, click 'Detailed Rules'.
+"""
+
     
-        bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
+        bot.send_message(message.chat.id, setup_text, reply_markup=markup)
 
     #Explanation of the game setup phase
     elif game_phase == "Game In Progress":
@@ -190,6 +188,16 @@ def start_game_callback(call):
         # Initialize current player index
         global current_player_index
         current_player_index = 0
+
+        # Create a new ReplyKeyboardMarkup object. This will be the custom keyboard.
+        global player_keyboard
+        player_keyboard = types.ReplyKeyboardMarkup(row_width=2)
+
+        # Create a list of KeyboardButton objects, one for each player in the game.
+        player_buttons = [types.KeyboardButton(player) for player in players]
+
+        # Add all of the player buttons to the markup using the add method.
+        player_keyboard.add(*player_buttons)
 
         # Announce the first player's turn
         bot.send_message(call.message.chat.id, f"It's {turn_order[current_player_index]}'s turn!")
@@ -322,16 +330,6 @@ def remove_player_callback(call):
     msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
     bot.register_next_step_handler(msg, remove_player)
 
-# Function to add a player
-def add_player(message):
-    player_name = message.text
-    if player_name in players:
-        bot.send_message(message.chat.id, f"Error: Player '{player_name}' already exists.")
-    else:
-        players[player_name] = 0
-        bot.send_message(message.chat.id, f"Player '{player_name}' added.")
-        print(f"Player '{player_name}' added.")
-
 # Register this function as a message handler for the /addplayer command
 @bot.message_handler(commands=['addplayer'])
 def add_player_command(message):
@@ -369,24 +367,24 @@ def remove_player_callback(call):
 # Callback for the "Assign Point" button
 @bot.callback_query_handler(func=lambda call: call.data == 'assign_point')
 def assign_point_callback(call):
-    # Send a message asking for the player's name
-    msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to assign a point to.")
-    # Register a listener for the next message from this user
-    bot.register_next_step_handler(msg, assign_point_name)
+    # Send a message to the user with the custom keyboard attached.
+    bot.send_message(call.message.chat.id, "Choose a player to assign a point to:", reply_markup=player_keyboard)
 
 # Function definition for assigning points
+@bot.message_handler(func=lambda message: True, content_types=['text'])
 def assign_point_name(message):
-    player_name = message.text
-    if player_name in players:
-        players[player_name] += 1
-        bot.send_message(message.chat.id, f"Point assigned to player: {player_name}")
-        if players[player_name] == 3:
+    if message.text in players:
+        players[message.text] += 1
+        bot.send_message(message.chat.id, f"Point assigned to player: {message.text}")
+        if players[message.text] == 3:
             # Transition to the "Game End" phase
             global game_phase
             game_phase = "Game End"
-            bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
+            bot.send_message(message.chat.id, f"Player '{message.text}' has won the game with 3 points!")
             # Display the final leaderboard
             show_leaderboard(message)
+    else:
+        bot.send_message(message.chat.id, f"Error: Player '{message.text}' does not exist.")
 
 # function to show the leaderboard
 def show_leaderboard(message):
@@ -573,16 +571,6 @@ def add_point_command(message):
 def add_point_callback(call):
     msg = bot.send_message(call.message.chat.id, "Please enter the player's name.")
     bot.register_next_step_handler(msg, add_point)
-
-# Function to remove a player
-def remove_player(message):
-    player_name = message.text
-    if player_name in players:
-        del players[player_name]
-        bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
-        print(f"Player '{player_name}' removed.")
-    else:
-        bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
 
 # Register this function as a message handler for the /removeplayer command
 @bot.message_handler(commands=['removeplayer'])
