@@ -21,6 +21,23 @@ turns_taken = 0
 # Global variable to store the current game phase
 game_phase = "No Game in Progress"
 
+from telebot import types
+
+# Function definition for the /start command
+@bot.message_handler(commands=['start'])
+def start_command(message):
+
+    # Reset the game phase
+    global game_phase
+    game_phase = "No Game in Progress"
+
+    # Reset the players dictionary
+    global players
+    players = {}
+
+    # Display the main menu
+    send_main_menu(message)
+
 # Main Menu 
 @bot.message_handler(commands=['menu'])
 def send_main_menu(message):
@@ -32,6 +49,9 @@ def send_main_menu(message):
 
     if game_phase == "No Game in Progress" or game_phase == "Game End":
         button_new_game = types.InlineKeyboardButton("Start New Game", callback_data='new_game')
+        # Clear the custom keyboard
+        global player_keyboard
+        player_keyboard = types.ReplyKeyboardRemove()
 
         # Add buttons to the markup
         markup.row(button_new_game)
@@ -43,13 +63,15 @@ Welcome to YouTube Roulette! 🎉
 
 Compete with your friends to find the most entertaining YouTube video based on a randomly generated search term. The player whose video gets the most votes wins a point. First to 3 points wins the game! 🏆
 
-Use your three "Superpowers" wisely: reroll a character, replace a character, or swap two characters in the search term. 
-
+Use your three "Superpowers" wisely: reroll a character, replace a character, or swap two characters in the search term.
+"""
+        start_text = """
 Ready to start? Click 'Start New Game' below! For a detailed explanation of the rules, click 'Detailed Rules'.
 """
 
         # Send the message with the markup
-        bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
+        bot.send_message(message.chat.id, explanation_text, reply_markup=player_keyboard)
+        bot.send_message(message.chat.id, start_text, reply_markup=markup)
 
     # Explanation of the game setup phase
     elif game_phase == "Game Setup":
