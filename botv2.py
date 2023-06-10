@@ -89,23 +89,25 @@ Ready to start? Just click 'Start New Game' below!
         button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
         button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
         button_show_leaderboard = types.InlineKeyboardButton("Show Leaderboard", callback_data='show_leaderboard')
-
+    
         markup.row(button_assign_point, button_remove_point)
         markup.row(button_generate_term, button_roll_character)
         markup.row(button_end_game, button_show_rules, button_show_leaderboard)
-
+    
         # Explanation of the buttons
         explanation_text = """
-        Game In Progress Phase:
-        - "Assign Point": Assigns a point to a player. You will be prompted to enter the player's name.
-        - "Remove Point": Removes a point from a player. You will be prompted to enter the player's name.
-        - "End Game": Ends the game and displays the final scores.
-        - "Show Rules": Shows the rules of the game.
-        - "Show Leaderboard": Shows the current leaderboard.
+        Game In Progress! Let's roll:
+        - "Assign Point": Give a point to a player. You'll need to enter the player's name.
+        - "Remove Point": Take a point from a player. Again, you'll need to enter the player's name.
+        - "Generate Term": Generate a random 4-character search term for the current player's turn.
+        - "Roll Character": Generate a random character. This can be used for the superpowers.
+        - "End Game": Stop the game and display the final scores. Use this when you're ready to wrap up.
+        - "Show Rules": Need a refresher on the rules? Click here!
+        - "Show Leaderboard": Check out the current standings in the game.
         """
-
+    
         bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
-
+    
 # Function to start a new game
 def start_new_game(message):
     players.clear()
@@ -270,13 +272,11 @@ def next_round_callback(call):
 
 # Callback for the "Cancel Game" button
 @bot.callback_query_handler(func=lambda call: call.data == 'cancel_game')
-def cancel_game_callback(call):
-    # Clear the list of players
-    players.clear()
-    # Transition back to the "No Game in Progress" phase
+def cancel_game(call):
     global game_phase
     game_phase = "No Game in Progress"
     bot.send_message(call.message.chat.id, "The game setup has been canceled.")
+    send_main_menu(call.message)
 
 # Function to add a player
 def add_player(message):
