@@ -179,11 +179,6 @@ Each player also has three "Superpowers" they can use once per game:
 Use your superpowers wisely and have fun!
     """)
 
-    # Check if a game is in progress.
-    if game_phase == "Game In Progress":
-        # If a game is in progress, send the turn menu.
-        send_turn_menu(call.message)
-
 # Register this function as a message handler for the /rules command
 @bot.message_handler(commands=['rules'])
 def rules_command(message):
@@ -196,10 +191,11 @@ def show_rules_callback(call):
 
 # Callback for the "Cancel Game" button
 @bot.callback_query_handler(func=lambda call: call.data == 'cancel_game')
-def cancel_game(call):
-    global game_phase
-    game_phase = "No Game in Progress"
-    bot.send_message(call.message.chat.id, "The game setup has been canceled.")
+def cancel_game_callback(call):
+    # Reset the game
+    reset_game()
+    # Send a message to the user
+    bot.send_message(call.message.chat.id, "The game has been cancelled. You can start a new game whenever you're ready.")
     send_main_menu(call.message)
 
 
@@ -258,8 +254,9 @@ def send_player_submenu(message):
     button_add_another = types.InlineKeyboardButton("Add Another Player", callback_data='add_player')
     button_remove_player = types.InlineKeyboardButton("Remove Player", callback_data='remove_player')
     button_start_game = types.InlineKeyboardButton("Start Game", callback_data='start_game')
+    button_cancel_game = types.InlineKeyboardButton('Cancel Game', callback_data='cancel_game')
     markup.row(button_add_another, button_remove_player)
-    markup.row(button_start_game)
+    markup.row(button_start_game,button_cancel_game)
 
     # Generate a string with the list of current players
     player_list = "\n".join(players.keys())
@@ -453,22 +450,21 @@ def remove_point_name(message):
     else:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' either does not exist or has no points to remove.")
 
-# End Game Message
+# Function to end the game
 def end_game(message):
-    # Sort the players by points in descending order
-    sorted_players = sorted(players.items(), key=lambda x: x[1], reverse=True)
-    # Get the highest score
-    highest_score = sorted_players[0][1]
-    # Get all players with the highest score
-    winners = [player for player, score in sorted_players if score == highest_score]
-    # Determine the winner message based on the number of winners
+    # Find the player(s) with the highest score
+    max_score = max(players.values())
+    winners = [player for player, score in players.items() if score == max_score]
+
+    # Prepare the end game message
     if len(winners) == 1:
-        winner_message = f"The winner is {winners[0]} with {highest_score} points!"
+        winner_message = f"🎉🎉🎉 *CONGRATULATIONS!* 🎉🎉🎉\n\n🏆 *{winners[0]}* is the *WINNER* of the game with *{max_score}* points! 🏆\n\nThanks for playing! Ready for another round?"
     else:
-        winners_str = ", ".join(winners)
-        winner_message = f"There's a tie between {winners_str} with {highest_score} points each!"
-    # Send the winner message
-    bot.send_message(message.chat.id, winner_message)
+        winner_message = f"🎉🎉🎉 *CONGRATULATIONS!* 🎉🎉🎉\n\n🏆 We have a tie! *{' and '.join(winners)}* are the *WINNERS* of the game with *{max_score}* points each! 🏆\n\nThanks for playing! Ready for another round?"
+
+    # Send the end game message
+    bot.send_message(message.chat.id, winner_message, parse_mode='Markdown')
+
     # Reset the game
     reset_game()
     send_main_menu(message)
@@ -559,47 +555,6 @@ def generate_term_callback(call):
 def roll_character_callback(call):
     char = generate_single_character()
     bot.send_message(call.message.chat.id, f"Rolled Character: {char}")
-
-# Function to add a point to a player
-def add_point(message):
-    player_name = message.text
-    if player_name in players:
-        players[player_name] += 1
-        bot.send_message(message.chat.id, f"Point added to player '{player_name}'.")
-        print(f"Point added to player '{player_name}'.")
-        if players[player_name] == 3:
-            # Transition to the "Game End" phase
-            global game_phase
-            game_phase = "Game End"
-            bot.send_message(message.chat.id, f"Player '{player_name}' has won the game with 3 points!")
-            # Display the final leaderboard
-            show_leaderboard_callback(message)
-    else:
-        bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
-
-# Register this function as a message handler for the /addpoint command
-@bot.message_handler(commands=['addpoint'])
-def add_point_command(message):
-    msg = bot.send_message(message.chat.id, "Please enter the player's name.")
-    bot.register_next_step_handler(msg, add_point)
-
-# Call this function from the callback function for the "Add Point" button
-@bot.callback_query_handler(func=lambda call: call.data == 'add_point')
-def add_point_callback(call):
-    msg = bot.send_message(call.message.chat.id, "Please enter the player's name.")
-    bot.register_next_step_handler(msg, add_point)
-
-# Register this function as a message handler for the /removeplayer command
-@bot.message_handler(commands=['removeplayer'])
-def remove_player_command(message):
-    msg = bot.send_message(message.chat.id, "Please enter the name of the player to remove.")
-    bot.register_next_step_handler(msg, remove_player)
-
-# Call this function from the callback function for the "Remove Player" button
-@bot.callback_query_handler(func=lambda call: call.data == 'remove_player')
-def remove_player_callback(call):
-    msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
-    bot.register_next_step_handler(msg, remove_player)
 
 # Waiting For New Messages
 bot.infinity_polling()
