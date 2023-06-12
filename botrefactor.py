@@ -147,6 +147,62 @@ class Game:
         leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
         return leaderboard
 
+    def end_game(self, message, bot_instance):
+        # Find the player(s) with the highest score
+        max_score = max(self.players.values())
+        winners = [player for player, score in self.players.items() if score == max_score]
+
+        # Prepare the end game message
+        if len(winners) == 1:
+            winner_message = f"🎉🎉🎉 *CONGRATULATIONS!* 🎉🎉🎉\n\n🏆 *{winners[0]}* is the *WINNER* of the game with *{max_score}* points! 🏆\n\nThanks for playing! Ready for another round?"
+        else:
+            winner_message = f"🎉🎉🎉 *CONGRATULATIONS!* 🎉🎉🎉\n\n🏆 We have a tie! *{' and '.join(winners)}* are the *WINNERS* of the game with *{max_score}* points each! 🏆\n\nThanks for playing! Ready for another round?"
+
+        # Send the end game message
+        bot_instance.bot.send_message(message.chat.id, winner_message, parse_mode='Markdown')
+
+        # Reset the game
+        self.reset_game(bot_instance)
+
+    def generate_search_term(self):
+        search_term = ""
+        wildcard_choices = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', 'other item']
+        other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
+
+        # Generate first character
+        char = random.choice(wildcard_choices)
+        if char == ' ':
+            char = '<wildcard>'
+        elif char == 'other item':
+            char = random.choice(other_list_choices)
+        search_term += char
+
+        # Generate middle characters
+        for _ in range(2):
+            char = random.choice(wildcard_choices)
+            if char == 'other item':
+                char = random.choice(other_list_choices)
+            search_term += char
+
+        # Generate last character
+        char = random.choice(wildcard_choices)
+        if char == ' ':
+            char = '<wildcard'
+        elif char == 'other item':
+            char = random.choice(other_list_choices)
+        search_term += char
+        print(f"Search term generated: {search_term}")
+
+        return search_term
+
+    def generate_single_character(self):
+        other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
+        char_options = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', ' ', 'other item']
+        char = random.choice(char_options)
+        if char == 'other item':
+            char = random.choice(other_list_choices)
+        return char
+
 # GAME CLASS ABOVE THIS LINE
 ########################################################
 # BOT CLASS BELOW THIS LINE
@@ -357,6 +413,18 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
     def show_leaderboard_callback(self, call):
         self.show_leaderboard(call.message)
 
+    def end_game_callback(self, call):
+        self.game.end_game(call.message, self)
+
+    def generate_term_callback(self, call):
+        search_term = self.game.generate_search_term()
+        self.bot.send_message(call.message.chat.id, f"Generated Search Term: {search_term}")
+
+    def roll_character_callback(self, call):
+        char = self.game.generate_single_character()
+        self.bot.send_message(call.message.chat.id, f"Rolled Character: {char}")
+        print(f"Rolled Character: {char}")
+
 # BOT CLASS ABOVE THIS LINE
 ########################################################
 
@@ -414,6 +482,18 @@ def remove_point_callback(call):
 @bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
 def show_leaderboard_callback(call):
     bot_instance.show_leaderboard_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'end_game')
+def end_game_callback(call):
+    bot_instance.end_game_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'generate')
+def generate_term_callback(call):
+    bot_instance.generate_term_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'roll')
+def roll_character_callback(call):
+    bot_instance.roll_character_callback(call)
 
 
 ########################################################
