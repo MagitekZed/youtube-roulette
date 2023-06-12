@@ -177,7 +177,7 @@ class Game:
         self.reset_game(bot_instance)
         bot_instance.send_main_menu(message)
 
-    def generate_search_term(self):
+    def generate_search_term(self, message):
         search_term = ""
         wildcard_choices = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', 'other item']
         other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
@@ -205,12 +205,6 @@ class Game:
             char = random.choice(other_list_choices)
         search_term += char
         print(f"Search term generated: {search_term}")
-
-        videos = self.search_youtube(search_term)
-
-        # This will print the titles and video IDs of the top 5 videos
-        for title, video_id in videos:
-            print(f"Title: {title}, Video ID: {video_id}")
       
         return search_term
 
@@ -221,22 +215,6 @@ class Game:
         if char == 'other item':
             char = random.choice(other_list_choices)
         return char
-
-    def search_youtube(self, search_term):
-        youtube = build('youtube', 'v3', developerKey='AIzaSyDtWKdsAXm2yJbo3MlZfIAxWq0iSkY-scU', cache_discovery=False)
-    
-        request = youtube.search().list(
-            part="snippet",
-            maxResults=5,
-            q=search_term
-        )
-    
-        response = request.execute()
-    
-        # This will return a list of video titles and video IDs
-        videos = [(item['snippet']['title'], item['id']['videoId']) for item in response['items'] if item['id']['kind'] == 'youtube#video']
-    
-        return videos
 
 
 # GAME CLASS ABOVE THIS LINE
@@ -454,12 +432,31 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
 
     def generate_term_callback(self, call):
         search_term = self.game.generate_search_term()
-        self.bot.send_message(call.message.chat.id, f"Generated Search Term: {search_term}")
+        self.bot.send_message(call.message.chat.id, f"Search term: {search_term}")
+        self.search_youtube(search_term, call.message)
 
     def roll_character_callback(self, call):
         char = self.game.generate_single_character()
         self.bot.send_message(call.message.chat.id, f"Rolled Character: {char}")
         print(f"Rolled Character: {char}")
+
+    def search_youtube(self, search_term, message):
+        youtube = build('youtube', 'v3', developerKey=os.environ.get('YOUTUBE_API_KEY'), cache_discovery=False, discoveryServiceUrl='https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest')
+    
+        request = youtube.search().list(
+            part="snippet",
+            maxResults=3,
+            q=search_term,
+            type="video"
+        )
+
+        response = request.execute()
+
+        for item in response['items']:
+            video_title = item['snippet']['title']
+            video_id = item['id']['videoId']
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
+            self.bot.send_message(message.chat.id, f"[{video_title}]({video_url})", parse_mode='Markdown')
 
 # BOT CLASS ABOVE THIS LINE
 ########################################################
