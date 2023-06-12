@@ -2,6 +2,8 @@ import os
 import telebot
 from telebot import types
 import random
+from googleapiclient.discovery import build
+
 
 # Getting Bot Token From Secrets
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -62,20 +64,30 @@ class Game:
         if len(self.players) < 2:
             bot_instance.bot.send_message(message.chat.id, "Error: At least 2 players are required to start the game.")
             return
-
+    
         # Initialize turn order
         self.turn_order = list(self.players.keys())
         random.shuffle(self.turn_order)
-
+    
         # Initialize current player index
         self.current_player_index = 0
-
+    
+        # Create a new ReplyKeyboardMarkup object. This will be the custom keyboard.
+        player_keyboard = types.ReplyKeyboardMarkup(row_width=2)
+    
+        # Create a list of KeyboardButton objects, one for each player in the game.
+        player_buttons = [types.KeyboardButton(player) for player in self.players]
+    
+        # Add all of the player buttons to the markup using the add method.
+        player_keyboard.add(*player_buttons)
+    
         # Transition to the "Game In Progress" phase
         self.game_phase = "Game In Progress"
-        bot_instance.bot.send_message(message.chat.id, "The game has started!", reply_markup=bot_instance.player_keyboard)
-
+        bot_instance.bot.send_message(message.chat.id, "The game has started!", reply_markup=player_keyboard)
+    
         # Announce the first player's turn and send the turn menu
         bot_instance.start_turn(message)
+
 
     def next_turn(self, message, bot_instance):
         # Increment the index of the current player (wrapping around to the start of the list if necessary)
@@ -194,6 +206,12 @@ class Game:
         search_term += char
         print(f"Search term generated: {search_term}")
 
+        videos = self.search_youtube(search_term)
+
+        # This will print the titles and video IDs of the top 5 videos
+        for title, video_id in videos:
+            print(f"Title: {title}, Video ID: {video_id}")
+      
         return search_term
 
     def generate_single_character(self):
@@ -203,6 +221,23 @@ class Game:
         if char == 'other item':
             char = random.choice(other_list_choices)
         return char
+
+    def search_youtube(self, search_term):
+        youtube = build('youtube', 'v3', developerKey='AIzaSyDtWKdsAXm2yJbo3MlZfIAxWq0iSkY-scU', cache_discovery=False)
+    
+        request = youtube.search().list(
+            part="snippet",
+            maxResults=5,
+            q=search_term
+        )
+    
+        response = request.execute()
+    
+        # This will return a list of video titles and video IDs
+        videos = [(item['snippet']['title'], item['id']['videoId']) for item in response['items'] if item['id']['kind'] == 'youtube#video']
+    
+        return videos
+
 
 # GAME CLASS ABOVE THIS LINE
 ########################################################
