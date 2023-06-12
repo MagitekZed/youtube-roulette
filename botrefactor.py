@@ -8,10 +8,16 @@ BOT_TOKEN = os.environ.get('BOT_TOKEN')
 # Creating Telebot Object
 bot = telebot.TeleBot(BOT_TOKEN)
 
+########################################################
+#GAME CLASS BELOW THIS LINE
+
 class Game:
     def __init__(self):
         self.players = {}
+        self.turn_order = []
+        self.current_player_index = 0
         self.game_phase = "No Game in Progress"
+        self.turns_taken = 0
 
     def start_bot(self):
         self.players.clear()
@@ -21,6 +27,129 @@ class Game:
         self.players.clear()
         self.game_phase = "Game Setup"
         print("Starting game setup.")
+
+    def reset_game(self):
+        self.players.clear()
+        self.game_phase = "No Game in Progress"
+
+    def cancel_game_callback(self, call, bot_instance):
+        self.reset_game()
+        bot_instance.bot.send_message(call.message.chat.id, "The game has been cancelled. You can start a new game whenever you're ready.")
+        bot_instance.send_main_menu(call.message)
+
+    def add_player(self, message, bot_instance):
+        player_name = message.text
+        if player_name in self.players:
+            bot_instance.bot.send_message(message.chat.id, f"Error: Player '{player_name}' already exists.")
+            bot_instance.send_player_submenu(message)  # Send the new submenu after attempting to add a player      
+        else:
+            self.players[player_name] = 0
+            bot_instance.bot.send_message(message.chat.id, f"Player '{player_name}' added.")
+            bot_instance.send_player_submenu(message)  # Send the new submenu after adding a player
+
+    def remove_player(self, message, bot_instance):
+        player_name = message.text
+        if player_name in self.players:
+            del self.players[player_name]
+            bot_instance.bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
+            bot_instance.send_player_submenu(message)  # Send the new submenu after removing a player
+        else:
+            bot_instance.bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+            bot_instance.send_player_submenu(message)  # Send the new submenu after removing a player
+
+    def start_game(self, message, bot_instance):
+        # Check if there are enough players to start the game
+        if len(self.players) < 2:
+            bot_instance.bot.send_message(message.chat.id, "Error: At least 2 players are required to start the game.")
+            return
+
+        # Initialize turn order
+        self.turn_order = list(self.players.keys())
+        random.shuffle(self.turn_order)
+
+        # Initialize current player index
+        self.current_player_index = 0
+
+        # Transition to the "Game In Progress" phase
+        self.game_phase = "Game In Progress"
+        bot_instance.bot.send_message(message.chat.id, "The game has started!", reply_markup=bot_instance.player_keyboard)
+
+        # Announce the first player's turn and send the turn menu
+        bot_instance.start_turn(message)
+
+    def next_turn(self, message, bot_instance):
+        # Increment the index of the current player (wrapping around to the start of the list if necessary)
+        self.current_player_index = (self.current_player_index + 1) % len(self.turn_order)
+        # Increment the number of turns taken
+        self.turns_taken += 1
+        # Check if the round is over
+        if self.turns_taken == len(self.turn_order):
+            # Reset the number of turns taken
+            self.turns_taken = 0
+            # Send the end of round menu
+            bot_instance.send_end_of_round_menu(message)
+        else:
+            # Start the next turn
+            bot_instance.start_turn(message)
+
+    def next_round(self, message, bot_instance):
+        # Reset the current player index
+        self.current_player_index = 0
+        # Show the leaderboard
+        bot_instance.show_leaderboard(message)
+        # Start the next round
+        bot_instance.start_turn(message)
+
+    def assign_point_callback(self, call, bot_instance):
+        msg = bot_instance.bot.send_message(call.message.chat.id, "Please enter the name of the player to assign a point to.")
+        bot_instance.bot.register_next_step_handler(msg, lambda message: self.assign_point_name(message, bot_instance))
+
+    def assign_point_name(self, message, bot_instance):
+        if message.text in self.players:
+            self.players[message.text] += 1
+            bot_instance.bot.send_message(message.chat.id, f"Point assigned to player: {message.text}")
+            if self.players[message.text] == 3:
+                # Transition to the "Game End" phase
+                self.game_phase = "Game End"
+                bot_instance.bot.send_message(message.chat.id, f"Player '{message.text}' has won the game with 3 points!")
+                # Display the final leaderboard
+                bot_instance.show_leaderboard(message)
+            else:
+                # Send the submenu for assigning or removing points or going to the next round
+                bot_instance.send_point_submenu(message)
+        else:
+            bot_instance.bot.send_message(message.chat.id, f"Error: Player '{message.text}' does not exist.")
+            # Send the submenu for assigning or removing points or going to the next round
+            bot_instance.send_point_submenu(message)
+
+    def remove_point_callback(self, call, bot_instance):
+        # Send a message asking for the player's name
+        msg = bot_instance.bot.send_message(call.message.chat.id, "Please enter the name of the player to remove a point from.")
+        # Register a listener for the next message from this user
+        bot_instance.bot.register_next_step_handler(msg, lambda message: self.remove_point_name(message, bot_instance))
+
+    def remove_point_name(self, message, bot_instance):
+        player_name = message.text
+        if player_name in self.players and self.players[player_name] > 0:
+            self.players[player_name] -= 1
+            bot_instance.bot.send_message(message.chat.id, f"Point removed from player: {player_name}")
+            # Send the submenu for assigning or removing points or going to the next round
+            bot_instance.send_point_submenu(message)
+        else:
+            bot_instance.bot.send_message(message.chat.id, f"Error: Player '{player_name}' either does not exist or has no points to remove.")
+            # Send the submenu for assigning or removing points or going to the next round
+            bot_instance.send_point_submenu(message)
+
+    def get_leaderboard(self):
+        # Sort the players by points in descending order
+        sorted_players = sorted(self.players.items(), key=lambda x: x[1], reverse=True)
+        # Format the leaderboard as a string
+        leaderboard = "\n".join(f"{name}: {points}" for name, points in sorted_players)
+        return leaderboard
+
+# GAME CLASS ABOVE THIS LINE
+########################################################
+# BOT CLASS BELOW THIS LINE
 
 class Bot:
     def __init__(self, token):
@@ -147,15 +276,101 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
     def show_rules_callback(self, call):
         self.rules(call)
 
+    def add_player_callback(self, call):
+        msg = self.bot.send_message(call.message.chat.id, "Please enter the player's name.")
+        self.bot.register_next_step_handler(msg, lambda message: self.game.add_player(message, self))
+
+    def remove_player_callback(self, call):
+        msg = self.bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
+        self.bot.register_next_step_handler(msg, lambda message: self.game.remove_player(message, self))
+
+    def send_player_submenu(self, message):
+        markup = types.InlineKeyboardMarkup()
+        button_add_another = types.InlineKeyboardButton("Add Another Player", callback_data='add_player')
+        button_remove_player = types.InlineKeyboardButton("Remove Player", callback_data='remove_player')
+        button_start_game = types.InlineKeyboardButton("Start Game", callback_data='start_game')
+        button_cancel_game = types.InlineKeyboardButton('Cancel Game', callback_data='cancel_game')
+        markup.row(button_add_another, button_remove_player)
+        markup.row(button_start_game,button_cancel_game)
+
+        # Generate a string with the list of current players
+        player_list = "\n".join(self.game.players.keys())
+        if player_list:
+            player_list = f"Current players:\n{player_list}"
+        else:
+            player_list = "No players added yet."
+
+        self.bot.send_message(message.chat.id, f"{player_list}\n\nWould you like to add/remove another player or start the game?", reply_markup=markup)
+
+    def start_game_callback(self, call):
+        self.game.start_game(call.message, self)
+
+    def start_turn(self, message):
+        current_player = self.game.turn_order[self.game.current_player_index]
+        current_score = self.game.players[current_player]
+        markup = types.InlineKeyboardMarkup()
+        button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
+        button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
+        button_next_turn = types.InlineKeyboardButton("Next Turn", callback_data='next_turn')
+        markup.row(button_generate_term, button_roll_character)
+        markup.row(button_next_turn)
+        self.bot.send_message(message.chat.id, f"It's {current_player}'s turn. Your current score is {current_score}.\n\nGenerate Term: Create a 4-character search term for YouTube.\nRoll Character: Randomly select a character for the search term.\nNext Turn: Pass your turn to the next player.", reply_markup=markup)
+
+    def next_turn_callback(self, call):
+        self.game.next_turn(call.message, self)
+
+    def send_end_of_round_menu(self, message):
+        markup = types.InlineKeyboardMarkup()
+        button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
+        button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
+        button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+        button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
+        button_next_round = types.InlineKeyboardButton("Next Round", callback_data='next_round')
+        markup.row(button_assign_point, button_remove_point)
+        markup.row(button_show_rules, button_end_game)
+        markup.row(button_next_round)
+        self.bot.send_message(message.chat.id, "Round over! Time to vote for the winner!", reply_markup=markup)
+
+    def next_round_callback(self, call):
+        self.game.next_round(call.message, self)
+
+    def send_point_submenu(self, message):
+        markup = types.InlineKeyboardMarkup()
+        button_assign_point = types.InlineKeyboardButton("Assign Another Point", callback_data='assign_point')
+        button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
+        button_next_round = types.InlineKeyboardButton("Next Round", callback_data='next_round')
+        button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
+        markup.row(button_assign_point, button_remove_point)
+        markup.row(button_next_round, button_end_game)
+        self.bot.send_message(message.chat.id, "What would you like to do next?", reply_markup=markup)
+
+    def show_leaderboard(self, message):
+        # Get the leaderboard
+        leaderboard = self.game.get_leaderboard()
+        # Send the leaderboard
+        self.bot.send_message(message.chat.id, f"Leaderboard:\n{leaderboard}")
+        # Check if the game has ended
+        if self.game.game_phase == "Game End":
+            # Send the main menu for the "Game End" phase
+            self.send_main_menu(message)
+
+    def show_leaderboard_callback(self, call):
+        self.show_leaderboard(call.message)
+
+# BOT CLASS ABOVE THIS LINE
+########################################################
+
 # Create an instance of the Bot class
 bot_instance = Bot(BOT_TOKEN)
 
+########################################################
 
 # Set up your command handlers here...
 @bot_instance.bot.message_handler(commands=['start'])
 def start_command(message):
     bot_instance.start_command(message)
 
+########################################################
 
 # Set up your callback handlers here...
 bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'new_game')(bot_instance.new_game_callback)
@@ -164,6 +379,44 @@ bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'new_game
 def show_rules_callback(call):
     bot_instance.show_rules_callback(call)
 
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'cancel_game')
+def cancel_game_callback(call):
+    bot_instance.game.cancel_game_callback(call, bot_instance)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'add_player')
+def add_player_callback(call):
+    bot_instance.add_player_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'remove_player')
+def remove_player_callback(call):
+    bot_instance.remove_player_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'start_game')
+def start_game_callback(call):
+    bot_instance.start_game_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'next_turn')
+def next_turn_callback(call):
+    bot_instance.next_turn_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'next_round')
+def next_round_callback(call):
+    bot_instance.next_round_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'assign_point')
+def assign_point_callback(call):
+    bot_instance.game.assign_point_callback(call, bot_instance)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'remove_point')
+def remove_point_callback(call):
+    bot_instance.game.remove_point_callback(call, bot_instance)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'show_leaderboard')
+def show_leaderboard_callback(call):
+    bot_instance.show_leaderboard_callback(call)
+
+
+########################################################
 
 # Start polling for new messages
 bot_instance.start_polling()
