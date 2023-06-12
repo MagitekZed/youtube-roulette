@@ -3,7 +3,7 @@ import telebot
 from telebot import types
 import random
 from googleapiclient.discovery import build
-
+import time
 
 # Getting Bot Token From Secrets
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -177,7 +177,7 @@ class Game:
         self.reset_game(bot_instance)
         bot_instance.send_main_menu(message)
 
-    def generate_search_term(self, message):
+    def generate_search_term(self):
         search_term = ""
         wildcard_choices = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'', 'other item']
         other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
@@ -432,7 +432,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
 
     def generate_term_callback(self, call):
         search_term = self.game.generate_search_term()
-        self.bot.send_message(call.message.chat.id, f"Search term: {search_term}")
+        self.bot.send_message(call.message.chat.id, f"Generated search term: {search_term}")
         self.search_youtube(search_term, call.message)
 
     def roll_character_callback(self, call):
@@ -456,7 +456,9 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
             video_title = item['snippet']['title']
             video_id = item['id']['videoId']
             video_url = f"https://www.youtube.com/watch?v={video_id}"
-            self.bot.send_message(message.chat.id, f"[{video_title}]({video_url})", parse_mode='Markdown')
+            self.bot.send_message(message.chat.id, video_title)
+            self.bot.send_message(message.chat.id, video_url)
+            time.sleep(2)  # Add a 1-second delay
 
 # BOT CLASS ABOVE THIS LINE
 ########################################################
