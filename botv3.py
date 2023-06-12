@@ -207,17 +207,11 @@ def add_player(message):
     player_name = message.text
     if player_name in players:
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' already exists.")
-        send_player_submenu(message)  # Send the new submenu after removing a player      
+        send_player_submenu(message)  # Send the new submenu after attempting to add a player      
     else:
         players[player_name] = 0
         bot.send_message(message.chat.id, f"Player '{player_name}' added.")
         send_player_submenu(message)  # Send the new submenu after adding a player
-
-# Register this function as a message handler for the /addplayer command
-@bot.message_handler(commands=['addplayer'])
-def add_player_command(message):
-    msg = bot.send_message(message.chat.id, "Please enter the player's name.")
-    bot.register_next_step_handler(msg, add_player)
 
 # Call this function from the callback function for the "Add Player" button
 @bot.callback_query_handler(func=lambda call: call.data == 'add_player')
@@ -236,17 +230,12 @@ def remove_player(message):
         bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
         send_player_submenu(message)  # Send the new submenu after removing a player        
 
-# Register this function as a message handler for the /removeplayer command
-@bot.message_handler(commands=['removeplayer'])
-def remove_player_command(message):
-    msg = bot.send_message(message.chat.id, "Please enter the name of the player to remove.")
-    bot.register_next_step_handler(msg, remove_player)
-
 # Call this function from the callback function for the "Remove Player" button
 @bot.callback_query_handler(func=lambda call: call.data == 'remove_player')
 def remove_player_callback(call):
     msg = bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
     bot.register_next_step_handler(msg, remove_player)
+
 
 # Send the add/remove player submenu during game setup
 def send_player_submenu(message):
