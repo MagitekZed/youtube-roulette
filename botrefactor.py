@@ -28,7 +28,7 @@ class Game:
         self.game_phase = "Game Setup"
         print("Starting game setup.")
 
-    def reset_game(self):
+    def reset_game(self, bot_instance):
         self.players.clear()
         self.game_phase = "No Game in Progress"
 
@@ -163,6 +163,7 @@ class Game:
 
         # Reset the game
         self.reset_game(bot_instance)
+        bot_instance.send_main_menu(message)
 
     def generate_search_term(self):
         search_term = ""
