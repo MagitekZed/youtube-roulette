@@ -3,248 +3,167 @@ import telebot
 from telebot import types
 import random
 
+# Getting Bot Token From Secrets
+BOT_TOKEN = os.environ.get('BOT_TOKEN')
+# Creating Telebot Object
+bot = telebot.TeleBot(BOT_TOKEN)
 
 class Game:
     def __init__(self):
-        # Dictionary to store players and their scores
         self.players = {}
-
-        # List to store the order of players' turns
-        self.turn_order = []
-
-        # Index to keep track of the current player
-        self.current_player_index = 0
-
-        # Variable to keep track of the number of turns taken in the current round
-        self.turns_taken = 0
-
-        # Variable to store the current game phase
-        self.phase = "No Game in Progress"
-
-    def start_game(self):
-        # Clear the players dictionary and turn order list
-        self.players.clear()
-        self.turn_order.clear()
-
-        # Reset the current player index and turns taken
-        self.current_player_index = 0
-        self.turns_taken = 0
-
-        # Set the game phase to "Game Setup"
-        self.phase = "Game Setup"
-
-    def add_player(self, player_name):
-        # Add a player to the game if they are not already in it
-        if player_name not in self.players:
-            self.players[player_name] = 0
-            return True
-        else:
-            return False
-
-    def remove_player(self, player_name):
-        # Remove a player from the game if they are in it
-        if player_name in self.players:
-            del self.players[player_name]
-            return True
-        else:
-            return False
-
-    def start_round(self):
-        # Create the turn order for the round and shuffle it
-        self.turn_order = list(self.players.keys())
-        random.shuffle(self.turn_order)
-
-        # Reset the current player index and turns taken
-        self.current_player_index = 0
-        self.turns_taken = 0
-
-        # Set the game phase to "Game In Progress"
-        self.phase = "Game In Progress"
-
-    def next_turn(self):
-        # Move to the next player's turn
-        self.current_player_index += 1
-
-        # If all players have had a turn, reset the current player index and set the game phase to "End of Round"
-        if self.current_player_index >= len(self.turn_order):
-            self.current_player_index = 0
-            self.phase = "End of Round"
-
-    def assign_point(self, player_name):
-        # Assign a point to a player if they are in the game
-        if player_name in self.players:
-            self.players[player_name] += 1
-            return True
-        else:
-            return False
-
-    def remove_point(self, player_name):
-        # Remove a point from a player if they are in the game and have at least one point
-        if player_name in self.players and self.players[player_name] > 0:
-            self.players[player_name] -= 1
-            return True
-        else:
-            return False
-
-    def end_game(self):
-        # Set the game phase to "Game End"
-        self.phase = "Game End"
-
-class Bot:
-    def __init__(self, token, game):
-        self.bot = telebot.TeleBot(token)
-        self.game = game
-        self.commands = {
-            'start': self.handle_start_game,
-            'addplayer': self.handle_add_player,
-            'removeplayer': self.handle_remove_player,
-            # Add more commands here as needed
-        }
+        self.game_phase = "No Game in Progress"
 
     def start_bot(self):
-        for command, handler in self.commands.items():
-            self.bot.message_handler(commands=[command])(handler)
-        self.bot.polling()
+        self.players.clear()
+        self.game_phase = "No Game in Progress"
 
-    # The rest of the methods go here
+    def start_new_game(self):
+        self.players.clear()
+        self.game_phase = "Game Setup"
+        print("Starting game setup.")
 
-    def handle_start_game(self, message):
-        """
-        This method handles the /start command. It resets the game and sends the main menu.
-        """
-        self.game.reset()
+class Bot:
+    def __init__(self, token):
+        self.bot = telebot.TeleBot(token)
+        self.game = Game()
+        self.player_keyboard = types.ReplyKeyboardRemove()
+
+    def start_command(self, message):
+        self.game.start_bot()
         self.send_main_menu(message)
 
-    def handle_add_player(self, message):
-        """
-        This method handles the /addplayer command. It adds a player to the game.
-        """
-        player_name = message.text
-        if self.game.add_player(player_name):
-            self.bot.send_message(message.chat.id, f"Player '{player_name}' added.")
-        else:
-            self.bot.send_message(message.chat.id, f"Error: Player '{player_name}' already exists.")
+    def send_main_menu(self, message):
+        # Create an instance of InlineKeyboardMarkup
+        markup = types.InlineKeyboardMarkup()
 
-    def handle_remove_player(self, message):
-        """
-        This method handles the /removeplayer command. It removes a player from the game.
-        """
-        player_name = message.text
-        if self.game.remove_player(player_name):
-            self.bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
-        else:
-            self.bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+        # Define the inline keyboard buttons.
+        button_rules = types.InlineKeyboardButton("Detailed Rules", callback_data='show_rules')
 
-    def handle_start_round(self, message):
-        """
-        This method handles the /startround command. It starts a new round of the game.
-        """
-        if len(self.game.players) == 0:
-            self.bot.send_message(message.chat.id, "Error: No players in the game.")
-        else:
-            self.game.start_round()
-            self.bot.send_message(message.chat.id, f"Round started. Turn order: {', '.join(self.game.turn_order)}")
+        if self.game.game_phase == "No Game in Progress" or self.game.game_phase == "Game End":
+            button_new_game = types.InlineKeyboardButton("Start New Game", callback_data='new_game')
 
-    def handle_next_turn(self, message):
-        """
-        This method handles the /nextturn command. It advances the game to the next turn.
-        """
-        if self.game.phase != "Game In Progress":
-            self.bot.send_message(message.chat.id, "Error: No round in progress.")
-        else:
-            self.game.next_turn()
-            current_player = self.game.turn_order[self.game.current_player_index]
-            self.bot.send_message(message.chat.id, f"It's {current_player}'s turn.")
+            # Add buttons to the markup
+            markup.row(button_new_game)
+            markup.row(button_rules)
 
-    def handle_assign_point(self, message):
-        """
-        This method handles the /assignpoint command. It assigns a point to a player.
-        """
-        player_name = message.text
-        if self.game.assign_point(player_name):
-            self.bot.send_message(message.chat.id, f"Point assigned to '{player_name}'.")
-        else:
-            self.bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found.")
+            # Explanation of the game and the buttons
+            explanation_text = """
+Welcome to YouTube Roulette! 🎉
 
-    def handle_remove_point(self, message):
-        """
-        This method handles the /removepoint command. It removes a point from a player.
-        """
-        player_name = message.text
-        if self.game.remove_point(player_name):
-            self.bot.send_message(message.chat.id, f"Point removed from '{player_name}'.")
-        else:
-            self.bot.send_message(message.chat.id, f"Error: Player '{player_name}' not found or has no points.")
+Compete with your friends to find the most entertaining YouTube video based on a randomly generated search term. The player whose video gets the most votes wins a point. First to 3 points wins the game! 🏆
 
-    def handle_end_game(self, message):
-        """
-        This method handles the /endgame command. It ends the current game.
-        """
-        self.game.end_game()
-        self.bot.send_message(message.chat.id, "The game has ended.")
+Use your three "Superpowers" wisely: reroll a character, replace a character, or swap two characters in the search term.
+"""
+            start_text = """
+Ready to start? Click 'Start New Game' below! For a detailed explanation of the rules, click 'Detailed Rules'.
+"""
 
-    def handle_help(self, message):
-        """
-        This method handles the /help command. It sends the rules of the game.
-        """
-        rules = """
-        1. Use /addplayer to add a player to the game.
-        2. Use /removeplayer to remove a player from the game.
-        3. Use /startround to start a new round. The turn order will be randomly determined.
-        4. Use /nextturn to advance to the next turn.
-        5. Use /assignpoint to assign a point to a player.
-        6. Use /removepoint to remove a point from a player.
-        7. Use /endgame to end the game.
-        """
-        self.bot.send_message(message.chat.id, rules)
+            # Send the message with the markup
+            self.bot.send_message(message.chat.id, explanation_text, reply_markup=self.player_keyboard)
+            self.bot.send_message(message.chat.id, start_text, reply_markup=markup)
 
-    def handle_unknown(self, message):
-        """
-        This method handles any unknown commands. It sends an error message.
-        """
-        self.bot.send_message(message.chat.id, "Error: Unknown command.")
+        # Explanation of the game setup phase
+        elif self.game.game_phase == "Game Setup":
+            button_add_player = types.InlineKeyboardButton("Add Player", callback_data='add_player')
+            button_remove_player = types.InlineKeyboardButton("Remove Player", callback_data='remove_player')
+            button_start_game = types.InlineKeyboardButton("Start Game", callback_data='start_game')
+            button_cancel_game = types.InlineKeyboardButton("Cancel Game", callback_data='cancel_game')
+            button_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+        
+            markup.row(button_add_player, button_remove_player)
+            markup.row(button_start_game, button_cancel_game, button_rules)
+        
+            # Explanation of the buttons
+            setup_text = """
+Game Setup 🎮
 
-class SearchTermGenerator:
-    def __init__(self):
-        self.wildcard_choices = [' ', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '-', '\'']
-        self.other_list_choices = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '/', '$', '%', '+', '[', ']', '\"', '_', '-', '.', ':', '?', '!', '@', '&', '#', '(']
+Add players using the 'Add Player' button. You need at least two players to start the game. 
 
-    def generate_search_term(self):
-        search_term = ""
+Once all players are added, click 'Start Game' to begin the YouTube Roulette! 
 
-        # Generate first character
-        char_options = self.wildcard_choices + ['other item']
-        char = random.choice(char_options)
-        if char == ' ':
-            char = '<wildcard>'
-        elif char == 'other item':
-            char = random.choice(self.other_list_choices)
-        search_term += char
+Need to remove a player? Use the 'Remove Player' button. 
 
-        # Generate middle characters
-        for _ in range(2):
-            char_options = self.wildcard_choices + ['other item']
-            char = random.choice(char_options)
-            if char == 'other item':
-                char = random.choice(self.other_list_choices)
-            search_term += char
+For a detailed explanation of the rules, click 'Detailed Rules'.
+"""
 
-        # Generate last character
-        char_options = self.wildcard_choices + ['other item']
-        char = random.choice(char_options)
-        if char == ' ':
-            char = '<wildcard>'
-        elif char == 'other item':
-            char = random.choice(self.other_list_choices)
-        search_term += char
+            self.bot.send_message(message.chat.id, setup_text, reply_markup=markup)
 
-        return search_term
+        # Explanation of the game in progress phase
+        elif self.game.game_phase == "Game In Progress":
+            button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
+            button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
+            button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
+            button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
+            button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
+            button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
+            button_show_leaderboard = types.InlineKeyboardButton("Show Leaderboard", callback_data='show_leaderboard')
+        
+            markup.row(button_assign_point, button_remove_point)
+            markup.row(button_generate_term, button_roll_character)
+            markup.row(button_end_game, button_show_rules, button_show_leaderboard)
+        
+            # Explanation of the buttons
+            explanation_text = """
+    Game In Progress! Let's roll:
+    - "Assign Point": Give a point to a player. You'll need to enter the player's name.
+    - "Remove Point": Take a point from a player. Again, you'll need to enter the player's name.
+    - "Generate Term": Generate a random 4-character search term for the current player's turn.
+    - "Roll Character": Generate a random character. This can be used for the superpowers.
+    - "End Game": Stop the game and display the final scores. Use this when you're ready to wrap up.
+    - "Show Rules": Need a refresher on the rules? Click here!
+    - "Show Leaderboard": Check out the current standings in the game.
+    """
 
-    def roll_single_character(self):
-        char_options = self.wildcard_choices + ['other item']
-        char = random.choice(char_options)
-        if char == ' ':
-            char = '<wildcard>'
-        elif char == 'other item':
-            char = random.choice(self.other_list_choices)
-        return char
+            self.bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
+          
+
+    def start_polling(self):
+        self.bot.infinity_polling()
+
+    @bot.callback_query_handler(func=lambda call: call.data == 'new_game')
+    def new_game_callback(self, call):
+        self.game.start_new_game()
+        self.send_main_menu(call.message)
+
+    def rules(self, call):
+        self.bot.send_message(call.message.chat.id, """
+        Welcome to YouTube Roulette! Here's a detailed explanation of the rules:
+
+        1️⃣ Each player's turn, they will randomly generate a 4-character search term using the 'Generate Term' button.
+        2️⃣ The player will then search YouTube using this term and choose one of the first three videos that appear. Note that channels, playlists, and songs without a timestamp are considered wildcards and don't count as one of the three choices, though they may be chosen. If a playlist is chosen, you must play the FIRST video.
+        3️⃣ The group must watch at least one full minute of the video (unless it is under one minute, in which case they must watch the whole video). After that time, players may begin "thumbs downing" a video by holding up their hand, and once a majority of players have thumbs downed, the game leader will exit the video.
+        4️⃣ After everyone has taken a turn and chosen a video, the group will vote on which person's video they thought was the best. The person whose video gets the most votes gets a point.
+        5️⃣ The first player to get 3 points wins the game. 🏆
+
+        Special Rules:
+        Each player also has three "Superpowers" they can use once per game:
+        - Reroll a single character: If you don't like one of the characters in your search term, you can reroll it to get a new random character.
+        - Replace a character with a character of their choosing: If you have a specific character you want in your search term, you can replace one of the existing characters with it.
+        - Swap two characters in the search term: If you think your search term would be better with two characters swapped, you can do that too!
+
+        Use your superpowers wisely and have fun!
+        """)
+
+    def show_rules_callback(self, call):
+        self.rules(call)
+
+# Create an instance of the Bot class
+bot_instance = Bot(BOT_TOKEN)
+
+
+# Set up your command handlers here...
+@bot_instance.bot.message_handler(commands=['start'])
+def start_command(message):
+    bot_instance.start_command(message)
+
+
+# Set up your callback handlers here...
+bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'new_game')(bot_instance.new_game_callback)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'show_rules')
+def show_rules_callback(call):
+    bot_instance.show_rules_callback(call)
+
+
+# Start polling for new messages
+bot_instance.start_polling()
