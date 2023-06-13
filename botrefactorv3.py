@@ -22,7 +22,6 @@ class Game:
         self.turns_taken = 0
         self.search_term = ""
         self.superpowers = {}
-        self.selected_character = None
 
     def start_bot(self):
         self.players.clear()
@@ -42,7 +41,7 @@ class Game:
         self.superpowers = {}
 
     def cancel_game_callback(self, call, bot_instance):
-        self.reset_game()
+        self.reset_game(bot_instance)
         bot_instance.bot.send_message(call.message.chat.id, "The game has been cancelled. You can start a new game whenever you're ready.")
         bot_instance.send_main_menu(call.message)
 
@@ -232,18 +231,23 @@ class Game:
         self.search_term = self.search_term[:index] + char + self.search_term[index+1:]
 
     def replace_character(self, old_char, new_char):
-        # Replace the selected character in the search term with the new character
+        # Replace the old character with the new character in the search term
         self.search_term = self.search_term.replace(old_char, new_char, 1)
-        # Reset the selected character
-        self.selected_character = None
+        print(f"new search term: {search_term}")
 
-    def select_character_to_replace(self, index, bot_instance):
-        # Set the selected character in the game instance
-        self.selected_character = self.search_term[index]
-        # Ask the user for a new character
-        msg = bot_instance.bot.send_message(bot_instance.chat_id, "Please send a single character to replace the selected character.")
-        # Register a listener for the next message from this user
-        bot_instance.bot.register_next_step_handler(msg, lambda message: self.replace_character(message, bot_instance))
+    def replace_character_with_input(self, index, new_char):
+        # Replace the character with the user's input
+        self.search_term = self.search_term[:index] + new_char + self.search_term[index+1:]
+
+    def handle_character_input(self, index, new_char):
+        # Replace the character with the user's input
+        self.replace_character_with_input(index, new_char)
+
+    def swap_characters(self, index1, index2):
+        # Swap the characters
+        chars = list(self.search_term)
+        chars[index1], chars[index2] = chars[index2], chars[index1]
+        self.search_term = ''.join(chars)
 
 # GAME CLASS ABOVE THIS LINE
 ########################################################
@@ -254,7 +258,7 @@ class Bot:
         self.bot = telebot.TeleBot(token)
         self.game = Game()
         self.player_keyboard = types.ReplyKeyboardRemove()
-        self.selected_character = None
+        self.user_data = {}
 
     def start_command(self, message):
         self.game.start_bot()
@@ -510,11 +514,21 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         # Send the message with the markup
         self.bot.send_message(message.chat.id, "Would you like to use a superpower or continue?", reply_markup=markup)
 
-    def continue_callback(self, call):
+    def continue_callback(self, call_or_message):
+        # Check if the argument is a CallbackQuery or a Message
+        if isinstance(call_or_message, types.CallbackQuery):
+            message = call_or_message.message
+        else:
+            message = call_or_message
+
+        # Send a message with the new search term
+        self.bot.send_message(message.chat.id, f"New search term: {self.game.search_term}")
+      
         # Execute the search_youtube function with the search term
-        self.search_youtube(call.message, self.game.search_term)
+        self.search_youtube(message, self.game.search_term)
+
         # Proceed to the next turn
-        self.game.next_turn(call.message, self)
+        self.game.next_turn(message, self)
 
     def send_superpower_choice_menu(self, message):
         # Create an instance of InlineKeyboardMarkup
@@ -558,55 +572,101 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         # Ask the user which character they want to replace
         self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)
 
-    def reroll_replace_character(self, call):
+    def replace_character(self, call):
         # Get the index of the character to replace
         index = int(call.data.split('_')[1])
 
         # Replace the character
         self.game.reroll_superpower(index)
 
-        # Send a message with the new search term
-        self.bot.send_message(call.message.chat.id, f"New search term: {self.game.search_term}")
-
         # Go to the next turn
         self.continue_callback(call)
 
-    def send_replace_character_menu(self, message):
-        # Create an instance of InlineKeyboardMarkup for the continue button
-        markup_inline = types.InlineKeyboardMarkup()
-        button_continue = types.InlineKeyboardButton("Continue without Replacing", callback_data='continue')
-        markup_inline.add(button_continue)
+    def replace_superpower(self, call):
+        # Create an instance of InlineKeyboardMarkup
+        markup = types.InlineKeyboardMarkup()
 
-        # Create an instance of ReplyKeyboardMarkup for the character buttons
-        markup_reply = types.ReplyKeyboardMarkup(one_time_keyboard=True)
-        # Add the characters of the search term as buttons
-        for char in self.game.search_term:
-            markup_reply.add(types.KeyboardButton(char))
+        # Define the inline keyboard buttons with the characters of the search term
+        buttons = [types.InlineKeyboardButton(char, callback_data=f'replace_char_{i}') for i, char in enumerate(self.game.search_term)]
 
-        # Send the message with the inline and reply markups
-        self.bot.send_message(message.chat.id, "Which character would you like to replace? Or continue without replacing:", reply_markup=markup_inline)
-        self.bot.send_message(message.chat.id, "Choose a character to replace:", reply_markup=markup_reply)
+        # Add buttons to the markup
+        markup.row(*buttons)
 
-    def replace_superpower_callback(self, call):
-        # Send the replace character menu
-        self.send_replace_character_menu(call.message)
+        # Ask the user which character they want to replace
+        self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)
 
-    @bot.message_handler(func=lambda message: game.selected_character is None and game.search_term is not None)
-    def select_character_to_replace(self, message):
-        # Set the selected character
-        self.game.selected_character = message.text
-        # Ask the user for a new character
-        self.bot.send_message(message.chat.id, "Enter a new character to replace the selected character:")
+    def replace_character_with_input(self, call):
+        # Get the index of the character to replace
+        index = int(call.data.split('_')[2])
 
-    @bot.message_handler(func=lambda message: game.selected_character is not None)
-    def replace_character(self, message):
-        # Get the new character from the message
-        new_character = message.text
-        # Replace the selected character with the new character
-        self.game.replace_character(self.game.selected_character, new_character)
-        # Continue the game
-        self.search_youtube(self.game.search_term)
-        self.game.next_turn(message, self)
+        # Store the index in the user data
+        self.user_data[call.message.chat.id] = index
+
+        # Ask the user to input a new character
+        msg = self.bot.send_message(call.message.chat.id, "Please input a new character.")
+
+        # Register the handle_character_input method as the next step handler
+        self.bot.register_next_step_handler(msg, self.handle_character_input)
+
+    def handle_character_input(self, message):
+        # Get the index of the character to replace
+        index = self.user_data[message.chat.id]
+
+        # Replace the character with the user's input
+        self.game.handle_character_input(index, message.text)
+
+        # Remove the index from the user data
+        del self.user_data[message.chat.id]
+
+        # Go to the next turn
+        self.continue_callback(message)
+
+    def swap_superpower(self, call):
+        # Create an instance of InlineKeyboardMarkup
+        markup = types.InlineKeyboardMarkup()
+
+        # Define the inline keyboard buttons with the characters of the search term
+        buttons = [types.InlineKeyboardButton(char, callback_data=f'swap_{i}') for i, char in enumerate(self.game.search_term)]
+
+        # Add buttons to the markup
+        markup.row(*buttons)
+
+        # Ask the user which character they want to swap
+        self.bot.send_message(call.message.chat.id, "Select the first character to swap.", reply_markup=markup)
+
+    def swap_character(self, call):
+        # Get the index of the character to swap
+        index = int(call.data.split('_')[1])
+
+        # Check if this chat ID exists in the user data
+        if call.message.chat.id not in self.user_data:
+            self.user_data[call.message.chat.id] = {}
+
+        # Check if this is the first or second character to swap
+        if 'swap_index' in self.user_data[call.message.chat.id]:
+            # This is the second character to swap
+            index1 = self.user_data[call.message.chat.id]['swap_index']
+            index2 = index
+
+            # Swap the characters
+            self.game.swap_characters(index1, index2)
+
+            # Remove the swap index from the user data
+            del self.user_data[call.message.chat.id]['swap_index']
+
+            # If there are no more user data for this chat, remove the chat from the user data
+            if not self.user_data[call.message.chat.id]:
+                del self.user_data[call.message.chat.id]
+
+            # Go to the next turn
+            self.continue_callback(call)
+        else:
+            # This is the first character to swap
+            # Store the index in the user data
+            self.user_data[call.message.chat.id]['swap_index'] = index
+
+            # Ask the user to select the second character to swap
+            self.bot.send_message(call.message.chat.id, "Select the second character to swap.")
   
 # BOT CLASS ABOVE THIS LINE
 ########################################################
@@ -691,20 +751,24 @@ def reroll_superpower_callback(call):
     bot_instance.reroll_superpower(call)
 
 @bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('reroll_'))
-def reroll_replace_character_callback(call):
-    bot_instance.reroll_replace_character(call)
+def replace_character_callback(call):
+    bot_instance.replace_character(call)
 
 @bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'replace')
 def replace_superpower_callback(call):
-    bot_instance.replace_superpower_callback(call)
+    bot_instance.replace_superpower(call)
 
-@bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('replace_'))
-def replace_character_callback(call):
-    # Extract the index from the callback data
-    index = int(call.data.split('_')[1])
-    # Call the new method in the Game class
-    bot_instance.game.select_character_to_replace(index, bot_instance)
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('replace_char_'))
+def replace_character_with_input_callback(call):
+    bot_instance.replace_character_with_input(call)
 
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'swap')
+def swap_superpower_callback(call):
+    bot_instance.swap_superpower(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('swap_'))
+def swap_character_callback(call):
+    bot_instance.swap_character(call)
 
 ########################################################
 
