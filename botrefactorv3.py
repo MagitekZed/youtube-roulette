@@ -237,6 +237,14 @@ class Game:
         # Reset the selected character
         self.selected_character = None
 
+    def select_character_to_replace(self, index, bot_instance):
+        # Set the selected character in the game instance
+        self.selected_character = self.search_term[index]
+        # Ask the user for a new character
+        msg = bot_instance.bot.send_message(bot_instance.chat_id, "Please send a single character to replace the selected character.")
+        # Register a listener for the next message from this user
+        bot_instance.bot.register_next_step_handler(msg, lambda message: self.replace_character(message, bot_instance))
+
 # GAME CLASS ABOVE THIS LINE
 ########################################################
 # BOT CLASS BELOW THIS LINE
@@ -542,7 +550,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         markup = types.InlineKeyboardMarkup()
 
         # Define the inline keyboard buttons with the characters of the search term
-        buttons = [types.InlineKeyboardButton(char, callback_data=f'replace_{i}') for i, char in enumerate(self.game.search_term)]
+        buttons = [types.InlineKeyboardButton(char, callback_data=f'reroll_{i}') for i, char in enumerate(self.game.search_term)]
 
         # Add buttons to the markup
         markup.row(*buttons)
@@ -682,13 +690,21 @@ def use_superpower_callback(call):
 def reroll_superpower_callback(call):
     bot_instance.reroll_superpower(call)
 
-@bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('replace_'))
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('reroll_'))
 def reroll_replace_character_callback(call):
     bot_instance.reroll_replace_character(call)
 
 @bot_instance.bot.callback_query_handler(func=lambda call: call.data == 'replace')
 def replace_superpower_callback(call):
     bot_instance.replace_superpower_callback(call)
+
+@bot_instance.bot.callback_query_handler(func=lambda call: call.data.startswith('replace_'))
+def replace_character_callback(call):
+    # Extract the index from the callback data
+    index = int(call.data.split('_')[1])
+    # Call the new method in the Game class
+    bot_instance.game.select_character_to_replace(index, bot_instance)
+
 
 ########################################################
 
