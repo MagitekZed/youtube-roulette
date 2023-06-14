@@ -97,7 +97,11 @@ class Game:
         # Announce the first player's turn and send the turn menu
         bot_instance.start_turn(message)
 
-
+    def get_current_player_and_score(self):
+        current_player = self.turn_order[self.current_player_index]
+        current_score = self.players[current_player]
+        return current_player, current_score
+    
     def next_turn(self, message, bot_instance):
         # Increment the index of the current player (wrapping around to the start of the list if necessary)
         self.current_player_index = (self.current_player_index + 1) % len(self.turn_order)
@@ -410,15 +414,14 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.game.start_game(call.message, self)
 
     def start_turn(self, message):
-        current_player = self.game.turn_order[self.game.current_player_index]
-        current_score = self.game.players[current_player]
+        current_player, current_score = self.game.get_current_player_and_score()
         markup = types.InlineKeyboardMarkup()
         button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
         button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
         button_next_turn = types.InlineKeyboardButton("Next Turn", callback_data='next_turn')
         markup.row(button_generate_term, button_roll_character)
         markup.row(button_next_turn)
-        self.bot.send_message(message.chat.id, f"It's {current_player}'s turn. Your current score is {current_score}.\n\nGenerate Term: Create a 4-character search term for YouTube.\nRoll Character: Randomly select a character for the search term.\nNext Turn: Pass your turn to the next player.", reply_markup=markup)
+        self.bot.send_message(message.chat.id, f"It's {current_player}'s turn! Current score: {current_score}\n\nGenerate Term: Create a 4-character search term for YouTube.\nRoll Character: Randomly select a character for the search term.\nNext Turn: Pass your turn to the next player.", reply_markup=markup)
 
     def next_turn_callback(self, call):
         self.game.next_turn(call.message, self)
