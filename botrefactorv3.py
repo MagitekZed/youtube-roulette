@@ -4,6 +4,7 @@ from telebot import types
 import random
 from googleapiclient.discovery import build
 import time
+import re
 
 # Getting Bot Token From Secrets
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
@@ -470,9 +471,6 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.bot.send_message(call.message.chat.id, f"Search term generated: {self.game.search_term}")
         # Send the superpower menu
         self.send_superpower_menu(call.message)
-        #search_term = self.game.generate_search_term()
-        #self.bot.send_message(call.message.chat.id, f"Generated search term: {search_term}")
-        #self.search_youtube(search_term, call.message)
 
     def roll_character_callback(self, call):
         char = self.game.generate_single_character()
@@ -482,23 +480,53 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
     def search_youtube(self, message, search_term):
         youtube = build('youtube', 'v3', developerKey=os.environ.get('YOUTUBE_API_KEY'), cache_discovery=False, discoveryServiceUrl='https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest')
     
-        request = youtube.search().list(
+        search_request = youtube.search().list(
             part="snippet",
-            maxResults=3,
+            maxResults=20,
             q=search_term,
-            type="video"
+            type="video,playlist"
         )
-
-        response = request.execute()
-
-        for item in response['items']:
-            video_title = item['snippet']['title']
-            video_id = item['id']['videoId']
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            self.bot.send_message(message.chat.id, video_title)
-            time.sleep(2)  # Add a 2-second delay 
-            self.bot.send_message(message.chat.id, video_url)
-            time.sleep(2)  # Add a 2-second delay 
+    
+        search_response = search_request.execute()
+    
+        video_count = 0
+        for item in search_response['items']:
+            if video_count == 3:
+                break
+    
+            item_id = item['id']
+            item_type = item_id['kind'].split('#')[-1]
+            item_title = item['snippet']['title']
+            item_id = item_id['videoId'] if item_type == 'video' else item_id['playlistId']
+    
+            # Make an additional API call to get the video details
+            video_request = youtube.videos().list(
+                part="statistics,contentDetails",
+                id=item_id
+            ) if item_type == 'video' else None
+    
+            video_response = video_request.execute() if video_request else None
+            video_item = video_response['items'][0] if video_response else None
+    
+            # Get the number of views and the length of the video
+            video_views = video_item['statistics']['viewCount'] if video_item else 'N/A'
+            video_length = video_item['contentDetails']['duration'] if video_item else 'N/A'  # This is in the format PT#M#S
+    
+            if video_length != 'N/A':
+                video_duration = re.search('PT(\d+M)?(\d+S)?', video_length)
+                video_minutes = video_duration.group(1)[:-1] if video_duration.group(1) else '0'
+                video_seconds = video_duration.group(2)[:-1] if video_duration.group(2) else '0'
+                video_length = f"{video_minutes} minutes {video_seconds} seconds"
+    
+            item_url = f"https://www.youtube.com/watch?v={item_id}" if item_type == 'video' else f"https://www.youtube.com/playlist?list={item_id}"
+    
+            # Send a message with the item details
+            item_type_text = ' <b>PLAYLIST</b>' if item_type == 'playlist' else ''
+            self.bot.send_message(message.chat.id, f"Title: {item_title}{item_type_text}\nViews: {video_views}\nLength: {video_length}\nURL: {item_url}", parse_mode='HTML')
+            time.sleep(2)  # Add a 2-second delay
+    
+            if item_type == 'video':
+                video_count += 1
 
     def send_superpower_menu(self, message):
         # Create an instance of InlineKeyboardMarkup
