@@ -372,7 +372,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
 
     @bot.callback_query_handler(func=lambda call: call.data == 'new_game')
     def new_game_callback(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         game_session.start_new_game()
         self.send_main_menu(call.message)
 
@@ -399,12 +399,14 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.rules(call)
 
     def add_player_callback(self, call):
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         msg = self.bot.send_message(call.message.chat.id, "Please enter the player's name.")
-        self.bot.register_next_step_handler(msg, lambda message: self.game.add_player(message, self))
+        self.bot.register_next_step_handler(msg, lambda message: game_session.add_player(message, self))
 
     def remove_player_callback(self, call):
+        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
         msg = self.bot.send_message(call.message.chat.id, "Please enter the name of the player to remove.")
-        self.bot.register_next_step_handler(msg, lambda message: self.game.remove_player(message, self))
+        self.bot.register_next_step_handler(msg, lambda message: game_session.remove_player(message, self))
 
     def send_player_submenu(self, message):
         game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
@@ -489,7 +491,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         game_session.end_game(call.message, self)
 
     def generate_term_callback(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         # Generate the term
         game_session.generate_search_term()
         # Send a message with the generated term
@@ -498,7 +500,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.send_superpower_menu(call.message)
 
     def roll_character_callback(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         char = game_session.generate_single_character()
         self.bot.send_message(call.message.chat.id, f"Rolled Character: {char}")
         print(f"Rolled Character: {char}")
@@ -614,12 +616,13 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.bot.send_message(message.chat.id, "Would you like to use a superpower or continue?", reply_markup=markup)
 
     def continue_callback(self, call_or_message):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
         # Check if the argument is a CallbackQuery or a Message
         if isinstance(call_or_message, types.CallbackQuery):
             message = call_or_message.message
+            game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         else:
             message = call_or_message
+            game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
 
         # Send a message with the new search term
         self.bot.send_message(message.chat.id, f"New search term: {game_session.search_term}")
@@ -674,7 +677,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)
 
     def replace_character(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         # Get the index of the character to replace
         index = int(call.data.split('_')[1])
 
@@ -685,7 +688,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.continue_callback(call)
 
     def replace_superpower(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         # Create an instance of InlineKeyboardMarkup
         markup = types.InlineKeyboardMarkup()
 
@@ -726,7 +729,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.continue_callback(message)
 
     def swap_superpower(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         # Create an instance of InlineKeyboardMarkup
         markup = types.InlineKeyboardMarkup()
 
@@ -740,7 +743,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.bot.send_message(call.message.chat.id, "Select the first character to swap.", reply_markup=markup)
 
     def swap_character(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         # Get the index of the character to swap
         index = int(call.data.split('_')[1])
 
