@@ -618,18 +618,19 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
     def continue_callback(self, call_or_message):
         # Check if the argument is a CallbackQuery or a Message
         if isinstance(call_or_message, types.CallbackQuery):
-            message = call_or_message.message
+            call = call_or_message
+            message = call.message
             game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         else:
             message = call_or_message
             game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
-
+    
         # Send a message with the new search term
         self.bot.send_message(message.chat.id, f"New search term: {game_session.search_term}")
       
         # Execute the search_youtube function with the search term
         self.search_youtube(message, game_session.search_term)
-
+    
         # Proceed to the next turn
         game_session.next_turn(message, self)
 
@@ -663,7 +664,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.send_superpower_choice_menu(call.message)
 
     def reroll_superpower(self, call):
-        game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
         # Create an instance of InlineKeyboardMarkup
         markup = types.InlineKeyboardMarkup()
 
