@@ -31,8 +31,9 @@ class Game:
         self.players.clear()
         self.game_phase = "No Game in Progress"
         self.search_term = ""
-        self.superpowers = {}
-
+        for player_name in self.superpowers.keys():
+            self.superpowers[player_name] = {"reroll": True, "replace": True, "swap": True}
+    
     def add_player(self, message, bot_instance):
         player_name = message.text
         if player_name in self.players:
@@ -41,9 +42,10 @@ class Game:
         else:
             self.players[player_name] = 0
             bot_instance.bot.send_message(message.chat.id, f"Player '{player_name}' added.")
-            self.superpowers[player_name] = {"reroll": False, "replace": False, "swap": False}
+            self.superpowers[player_name] = {"reroll": True, "replace": True, "swap": True}
             print(f"Player added: {player_name}")
             bot_instance.send_player_submenu(message)  # Send the new submenu after adding a player
+    
 
     def remove_player(self, message, bot_instance):
         player_name = message.text
@@ -234,3 +236,30 @@ class Game:
         chars = list(self.search_term)
         chars[index1], chars[index2] = chars[index2], chars[index1]
         self.search_term = ''.join(chars)
+
+    def use_reroll(self, player_name):
+        if self.superpowers[player_name]["reroll"]:
+            # Use the reroll superpower
+            self.reroll_superpower(index)
+            # Mark the reroll superpower as used
+            self.superpowers[player_name]["reroll"] = False
+        else:
+            print(f"Player {player_name} has already used the reroll superpower.")
+
+    def use_replace(self, player_name, old_char, new_char):
+        if self.superpowers[player_name]["replace"]:
+            # Use the replace superpower
+            self.replace_character(old_char, new_char)
+            # Mark the replace superpower as used
+            self.superpowers[player_name]["replace"] = False
+        else:
+            print(f"Player {player_name} has already used the replace superpower.")
+    
+    def use_swap(self, player_name, index1, index2):
+        if self.superpowers[player_name]["swap"]:
+            # Use the swap superpower
+            self.swap_characters(index1, index2)
+            # Mark the swap superpower as used
+            self.superpowers[player_name]["swap"] = False
+        else:
+            print(f"Player {player_name} has already used the swap superpower.")
