@@ -1,12 +1,6 @@
 import os
-import telebot
-from telebot import types
-import random
-from googleapiclient.discovery import build
-import time
-import re
-from game import Game
 from bot import Bot
+
 
 # Getting Bot Token From Secrets
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
