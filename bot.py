@@ -6,11 +6,16 @@ import random
 from googleapiclient.discovery import build
 import time
 import re
+import requests
+import json
+import time
 
 # Getting Bot Token From Secrets
 BOT_TOKEN = os.environ.get('BOT_TOKEN')
 # Creating Telebot Object
 bot = telebot.TeleBot(BOT_TOKEN)
+# Watch2Gether API token
+WATCH_TOKEN = os.environ.get('WATCH_TOKEN')
 
 class Bot:
     def __init__(self, token):
@@ -88,34 +93,6 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
 """
 
             self.bot.send_message(message.chat.id, setup_text, reply_markup=markup)
-
-        # Explanation of the game in progress phase
-        elif game_session.game_phase == "Game In Progress":
-            button_generate_term = types.InlineKeyboardButton("Generate Term", callback_data='generate')
-            button_roll_character = types.InlineKeyboardButton("Roll Character", callback_data='roll')
-            button_assign_point = types.InlineKeyboardButton("Assign Point", callback_data='assign_point')
-            button_remove_point = types.InlineKeyboardButton("Remove Point", callback_data='remove_point')
-            button_end_game = types.InlineKeyboardButton("End Game", callback_data='end_game')
-            button_show_rules = types.InlineKeyboardButton("Show Rules", callback_data='show_rules')
-            button_show_leaderboard = types.InlineKeyboardButton("Show Leaderboard", callback_data='show_leaderboard')
-        
-            markup.row(button_assign_point, button_remove_point)
-            markup.row(button_generate_term, button_roll_character)
-            markup.row(button_end_game, button_show_rules, button_show_leaderboard)
-        
-            # Explanation of the buttons
-            explanation_text = """
-    Game In Progress! Let's roll:
-    - "Assign Point": Give a point to a player. You'll need to enter the player's name.
-    - "Remove Point": Take a point from a player. Again, you'll need to enter the player's name.
-    - "Generate Term": Generate a random 4-character search term for the current player's turn.
-    - "Roll Character": Generate a random character. This can be used for the superpowers.
-    - "End Game": Stop the game and display the final scores. Use this when you're ready to wrap up.
-    - "Show Rules": Need a refresher on the rules? Click here!
-    - "Show Leaderboard": Check out the current standings in the game.
-    """
-
-            self.bot.send_message(message.chat.id, explanation_text, reply_markup=markup)
         
     def start_polling(self):
         self.bot.infinity_polling()
@@ -131,7 +108,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         Welcome to YouTube Roulette! Here's a detailed explanation of the rules:
 
         1️⃣ Each player's turn, they will randomly generate a 4-character search term using the 'Generate Term' button.
-        2️⃣ The player will then search YouTube using this term and choose one of the first three videos that appear. Note that channels, playlists, and songs without a timestamp are considered wildcards and don't count as one of the three choices, though they may be chosen. If a playlist is chosen, you must play the FIRST video.
+        2️⃣ The player will then search YouTube using this term and choose one of the first three videos that appear. Note that are considered wildcards and don't count as one of the three choices, though they may be chosen. If a playlist is chosen, you must play the FIRST video.
         3️⃣ The group must watch at least one full minute of the video (unless it is under one minute, in which case they must watch the whole video). After that time, players may begin "thumbs downing" a video by holding up their hand, and once a majority of players have thumbs downed, the game leader will exit the video.
         4️⃣ After everyone has taken a turn and chosen a video, the group will vote on which person's video they thought was the best. The person whose video gets the most votes gets a point.
         5️⃣ The first player to get 3 points wins the game. 🏆
@@ -187,6 +164,27 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
 
     def start_game_callback(self, call):
         game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
+
+        # Create a new room
+        create_room_url = 'https://api.w2g.tv/rooms/create.json'
+        headers = {'Accept': 'application/json', 'Content-Type': 'application/json'}
+        body = {
+            'w2g_api_key': WATCH_TOKEN,
+            'share': 'https://youtu.be/pdsJ8GpPXbc',  # Preload "Let's get started!" video
+            'bg_color': '#A6C3D5',  # Change this to your preferred color
+            'bg_opacity': '50'
+        }
+        response = requests.post(create_room_url, headers=headers, data=json.dumps(body))
+        data = response.json()
+
+        # Get the streamkey
+        streamkey = data['streamkey']
+
+        # Store the room link in the game session
+        game_session.room_link = f'https://w2g.tv/rooms/{streamkey}'
+        print('Here\'s your stream link: ')
+        print(game_session.room_link)
+      
         game_session.start_game(call.message, self)
 
     def start_turn(self, message):
@@ -402,6 +400,16 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         # Proceed to the next turn
         game_session.next_turn(message, self)
 
+    def get_player_name(self, user_id):
+        # Retrieve the game session for the user
+        game_session = self.get_game_session(user_id)
+        
+        # Retrieve the current player's name from the game session
+        current_player_index = game_session.current_player_index
+        current_player = game_session.turn_order[current_player_index]
+    
+        return current_player
+
     def send_superpower_choice_menu(self, message):
         # Create an instance of InlineKeyboardMarkup
         markup = types.InlineKeyboardMarkup()
@@ -419,7 +427,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         # Define the superpowers explanation
         superpowers_explanation = """
         Superpowers:
-        - Reroll: Generate a new search term.
+        - Reroll: Reroll a character in the search term.
         - Replace: Replace a character in the search term.
         - Swap: Swap two characters in the search term.
         """
@@ -428,47 +436,75 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
         self.bot.send_message(message.chat.id, superpowers_explanation + "Choose a superpower or continue without using one:", reply_markup=markup)
 
     def use_superpower_callback(self, call):
-        # Send the superpower choice menu
+        game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user        
         self.send_superpower_choice_menu(call.message)
-
+        
     def reroll_superpower(self, call):
         game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
-        # Create an instance of InlineKeyboardMarkup
-        markup = types.InlineKeyboardMarkup()
 
-        # Define the inline keyboard buttons with the characters of the search term
-        buttons = [types.InlineKeyboardButton(char, callback_data=f'reroll_{i}') for i, char in enumerate(game_session.search_term)]
+        # Retrieve the current player's name
+        current_player = self.get_player_name(call.message.chat.id)
+        print(f"reroll player name: {current_player}")
 
-        # Add buttons to the markup
-        markup.row(*buttons)
+        # Check if the reroll superpower has already been used by the player
+        if game_session.superpowers_used[current_player]["reroll"]:
+            self.bot.send_message(call.message.chat.id, f"The 'reroll' superpower has already been used by {current_player}.")
+            # Go back to the superpower menu
+            self.send_superpower_choice_menu(call.message)
+        else:
+            # Create an instance of InlineKeyboardMarkup
+            markup = types.InlineKeyboardMarkup()
 
-        # Ask the user which character they want to replace
-        self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)
+            # Define the inline keyboard buttons with the characters of the search term
+            buttons = [types.InlineKeyboardButton(char, callback_data=f'reroll_{i}') for i, char in enumerate(game_session.search_term)]
 
+            # Add buttons to the markup
+            markup.row(*buttons)
+
+            # Ask the user which character they want to replace
+            self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)   
+        
     def replace_character(self, call):
         game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
+
+        # Retrieve the current player's name
+        player_name = self.get_player_name(call.message.chat.id)
+        
         # Get the index of the character to replace
         index = int(call.data.split('_')[1])
-
+    
         # Replace the character
-        game_session.reroll_superpower(index)
-
+        game_session.reroll_superpower(player_name, index)
+        
+        self.bot.send_message(call.message.chat.id, f"Superpower 'reroll' used successfully. New term: {game_session.search_term}")
+                
         # Go to the next turn
         self.continue_callback(call)
 
     def replace_superpower(self, call):
         game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
-        # Create an instance of InlineKeyboardMarkup
-        markup = types.InlineKeyboardMarkup()
 
-        # Define the inline keyboard buttons with the characters of the search term
-        buttons = [types.InlineKeyboardButton(char, callback_data=f'replace_char_{i}') for i, char in enumerate(game_session.search_term)]
+        # Retrieve the current player's name
+        current_player = self.get_player_name(call.message.chat.id)
+        print(f"Replace player name: {current_player}")
 
-        # Add buttons to the markup
-        markup.row(*buttons)
+        # Check if the replace superpower has already been used by the player
+        if game_session.superpowers_used[current_player]["replace"]:
+            self.bot.send_message(call.message.chat.id, f"The 'replace' superpower has already been used by {current_player}.")
+            # Go back to the superpower menu
+            self.send_superpower_choice_menu(call.message)
+        else:
+	        # Create an instance of InlineKeyboardMarkup
+	        markup = types.InlineKeyboardMarkup()
 
-        # Ask the user which character they want to replace
-        self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)
+	        # Define the inline keyboard buttons with the characters of the search term
+	        buttons = [types.InlineKeyboardButton(char, callback_data=f'replace_char_{i}') for i, char in enumerate(game_session.search_term)]
+
+	        # Add buttons to the markup
+	        markup.row(*buttons)
+
+	        # Ask the user which character they want to replace
+	        self.bot.send_message(call.message.chat.id, "Which character do you want to replace?", reply_markup=markup)
 
     def replace_character_with_input(self, call):
         # Get the index of the character to replace
@@ -486,10 +522,13 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
     def handle_character_input(self, message):
         game_session = self.get_game_session(message.chat.id)  # Get the game instance for this user
         # Get the index of the character to replace
+        # Retrieve the current player's name
+        player_name = self.get_player_name(message.chat.id)
+
         index = self.user_data[message.chat.id]
 
         # Replace the character with the user's input
-        game_session.handle_character_input(index, message.text)
+        game_session.handle_character_input(index, message.text, player_name)
 
         # Remove the index from the user data
         del self.user_data[message.chat.id]
@@ -499,20 +538,33 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
 
     def swap_superpower(self, call):
         game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
-        # Create an instance of InlineKeyboardMarkup
-        markup = types.InlineKeyboardMarkup()
+        # Retrieve the current player's name
+        current_player = self.get_player_name(call.message.chat.id)
+        print(f"Swap player name: {current_player}")
 
-        # Define the inline keyboard buttons with the characters of the search term
-        buttons = [types.InlineKeyboardButton(char, callback_data=f'swap_{i}') for i, char in enumerate(game_session.search_term)]
+        # Check if the swap superpower has already been used by the player
+        if game_session.superpowers_used[current_player]["swap"]:
+            self.bot.send_message(call.message.chat.id, f"The 'swap' superpower has already been used by {current_player}.")
+            # Go back to the superpower menu
+            self.send_superpower_choice_menu(call.message)
+        else:
+	        # Create an instance of InlineKeyboardMarkup
+	        markup = types.InlineKeyboardMarkup()
 
-        # Add buttons to the markup
-        markup.row(*buttons)
+	        # Define the inline keyboard buttons with the characters of the search term
+	        buttons = [types.InlineKeyboardButton(char, callback_data=f'swap_{i}') for i, char in enumerate(game_session.search_term)]
 
-        # Ask the user which character they want to swap
-        self.bot.send_message(call.message.chat.id, "Select the first character to swap.", reply_markup=markup)
+	        # Add buttons to the markup
+	        markup.row(*buttons)
+
+	        # Ask the user which character they want to swap
+	        self.bot.send_message(call.message.chat.id, "Select the first character to swap.", reply_markup=markup)
 
     def swap_character(self, call):
         game_session = self.get_game_session(call.message.chat.id)  # Get the game instance for this user
+        # Retrieve the current player's name
+        player_name = self.get_player_name(call.message.chat.id)
+
         # Get the index of the character to swap
         index = int(call.data.split('_')[1])
 
@@ -527,7 +579,7 @@ For a detailed explanation of the rules, click 'Detailed Rules'.
             index2 = index
 
             # Swap the characters
-            game_session.swap_characters(index1, index2)
+            game_session.swap_characters(index1, index2, player_name)
 
             # Remove the swap index from the user data
             del self.user_data[call.message.chat.id]['swap_index']
