@@ -5,6 +5,9 @@ import random
 from googleapiclient.discovery import build
 import time
 import re
+import requests
+import json
+import time
 
 class Game:
     def __init__(self):
@@ -14,7 +17,8 @@ class Game:
         self.game_phase = "No Game in Progress"
         self.turns_taken = 0
         self.search_term = ""
-        self.superpowers = {}
+        self.superpowers_used = {}
+        self.room_link = None
 
     def start_bot(self):
         self.players.clear()
@@ -25,15 +29,14 @@ class Game:
         self.game_phase = "Game Setup"
         print("Starting game setup.")
         self.search_term = ""
-        self.superpowers = {}
+        self.superpowers_used = {}
 
     def reset_game(self, bot_instance):
         self.players.clear()
         self.game_phase = "No Game in Progress"
         self.search_term = ""
-        for player_name in self.superpowers.keys():
-            self.superpowers[player_name] = {"reroll": True, "replace": True, "swap": True}
-    
+        self.superpowers_used = {}
+
     def add_player(self, message, bot_instance):
         player_name = message.text
         if player_name in self.players:
@@ -42,16 +45,24 @@ class Game:
         else:
             self.players[player_name] = 0
             bot_instance.bot.send_message(message.chat.id, f"Player '{player_name}' added.")
-            self.superpowers[player_name] = {"reroll": True, "replace": True, "swap": True}
+            self.superpowers_used[player_name] = {"reroll": False, "replace": False, "swap": False}
             print(f"Player added: {player_name}")
+            self.print_user_information(message, bot_instance)
             bot_instance.send_player_submenu(message)  # Send the new submenu after adding a player
-    
+
+    def print_user_information(self, message, bot_instance):
+        user_id = message.from_user.id
+        user_first_name = message.from_user.first_name
+        user_last_name = message.from_user.last_name if message.from_user.last_name else ''
+        user_username = message.from_user.username if message.from_user.username else ''
+        user_metadata = f"Telegram User Information. User ID: {user_id}, First Name: {user_first_name}, Last Name: {user_last_name}, Username: {user_username}"
+        print(user_metadata)
 
     def remove_player(self, message, bot_instance):
         player_name = message.text
         if player_name in self.players:
             del self.players[player_name]
-            del self.superpowers[player_name]
+            del self.superpowers_used[player_name]
             bot_instance.bot.send_message(message.chat.id, f"Player '{player_name}' removed.")
             print(f"Player removed: {player_name}")
             bot_instance.send_player_submenu(message)  # Send the new submenu after removing a player
@@ -84,13 +95,15 @@ class Game:
         # Transition to the "Game In Progress" phase
         self.game_phase = "Game In Progress"
         print("Game Started")
-        bot_instance.bot.send_message(message.chat.id, "The game has started!", reply_markup=player_keyboard)
+        bot_instance.bot.send_message(message.chat.id, "The game has started! Here is your Watch2Gether link: " + self.room_link, reply_markup=player_keyboard)
     
         # Announce the first player's turn and send the turn menu
         bot_instance.start_turn(message)
+     
 
     def get_current_player_and_score(self):
         current_player = self.turn_order[self.current_player_index]
+        print(f"The current player for debugging is: {current_player}")
         current_score = self.players[current_player]
         return current_player, current_score
     
@@ -213,11 +226,16 @@ class Game:
             char = random.choice(other_list_choices)
         return char
 
-    def reroll_superpower(self, index):
+    def reroll_superpower(self, player_name, index):
+        # Mark the superpower as used for the current player
+        self.superpowers_used[player_name]["reroll"] = True
+
         # Replace the character
         char = self.generate_single_character()
         self.search_term = self.search_term[:index] + char + self.search_term[index+1:]
 
+        return True  # Superpower used successfully
+   
     def replace_character(self, old_char, new_char):
         # Replace the old character with the new character in the search term
         self.search_term = self.search_term.replace(old_char, new_char, 1)
@@ -227,39 +245,24 @@ class Game:
         # Replace the character with the user's input
         self.search_term = self.search_term[:index] + new_char + self.search_term[index+1:]
 
-    def handle_character_input(self, index, new_char):
+    def handle_character_input(self, index, new_char, player_name):
+    	# Mark the superpower as used for the current player
+        self.superpowers_used[player_name]["replace"] = True
+
         # Replace the character with the user's input
         self.replace_character_with_input(index, new_char)
 
-    def swap_characters(self, index1, index2):
+        return True  # Superpower used successfully
+
+    def swap_characters(self, index1, index2, player_name):
+		# Mark the superpower as used for the current player
+        self.superpowers_used[player_name]["swap"] = True
+
         # Swap the characters
         chars = list(self.search_term)
         chars[index1], chars[index2] = chars[index2], chars[index1]
         self.search_term = ''.join(chars)
 
-    def use_reroll(self, player_name):
-        if self.superpowers[player_name]["reroll"]:
-            # Use the reroll superpower
-            self.reroll_superpower(index)
-            # Mark the reroll superpower as used
-            self.superpowers[player_name]["reroll"] = False
-        else:
-            print(f"Player {player_name} has already used the reroll superpower.")
+        return True  # Superpower used successfully
 
-    def use_replace(self, player_name, old_char, new_char):
-        if self.superpowers[player_name]["replace"]:
-            # Use the replace superpower
-            self.replace_character(old_char, new_char)
-            # Mark the replace superpower as used
-            self.superpowers[player_name]["replace"] = False
-        else:
-            print(f"Player {player_name} has already used the replace superpower.")
     
-    def use_swap(self, player_name, index1, index2):
-        if self.superpowers[player_name]["swap"]:
-            # Use the swap superpower
-            self.swap_characters(index1, index2)
-            # Mark the swap superpower as used
-            self.superpowers[player_name]["swap"] = False
-        else:
-            print(f"Player {player_name} has already used the swap superpower.")
